@@ -2,13 +2,16 @@
 
 import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ShoppingBag, Search, Filter, X, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import {
+  ShoppingBag, Search, Filter, X, SlidersHorizontal,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+} from 'lucide-react';
 import { useCart } from '@/context/CartContext';
 import ProductCard from '@/components/ProductCard';
+import PriceRangeSlider from '@/components/PriceRangeSlider';
 
 const PAGE_SIZE = 12;
 
-// ── Hook: debounce para la búsqueda ──────────────────────────────────────────
 function useDebounce(value, delay) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -18,7 +21,7 @@ function useDebounce(value, delay) {
   return debounced;
 }
 
-// ── Componente de paginación ─────────────────────────────────────────────────
+// ── Paginación ───────────────────────────────────────────────────────────────
 function Pagination({ pagination, onPageChange }) {
   if (!pagination || pagination.totalPages <= 1) return null;
 
@@ -26,15 +29,11 @@ function Pagination({ pagination, onPageChange }) {
   const desde = (page - 1) * pageSize + 1;
   const hasta = Math.min(page * pageSize, total);
 
-  // Generar páginas visibles (max 5 botones)
   const getPages = () => {
     const delta = 2;
     const range = [];
-    for (
-      let i = Math.max(1, page - delta);
-      i <= Math.min(totalPages, page + delta);
-      i++
-    ) range.push(i);
+    for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++)
+      range.push(i);
     return range;
   };
 
@@ -44,84 +43,50 @@ function Pagination({ pagination, onPageChange }) {
         Mostrando <span className="font-semibold text-gray-800">{desde}–{hasta}</span> de{' '}
         <span className="font-semibold text-gray-800">{total}</span> productos
       </p>
-
       <div className="flex items-center gap-1">
-        {/* Primera página */}
-        <button
-          onClick={() => onPageChange(1)}
-          disabled={page === 1}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="Primera página"
-        >
+        <button onClick={() => onPageChange(1)} disabled={page === 1}
+          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           <ChevronsLeft className="w-4 h-4" />
         </button>
-
-        {/* Página anterior */}
-        <button
-          onClick={() => onPageChange(page - 1)}
-          disabled={page === 1}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="Página anterior"
-        >
+        <button onClick={() => onPageChange(page - 1)} disabled={page === 1}
+          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           <ChevronLeft className="w-4 h-4" />
         </button>
 
-        {/* Ellipsis inicio */}
         {getPages()[0] > 1 && (
           <>
-            <button
-              onClick={() => onPageChange(1)}
-              className="w-9 h-9 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-            >1</button>
+            <button onClick={() => onPageChange(1)}
+              className="w-9 h-9 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">1</button>
             {getPages()[0] > 2 && <span className="px-1 text-gray-400">…</span>}
           </>
         )}
 
-        {/* Páginas numeradas */}
         {getPages().map((p) => (
-          <button
-            key={p}
-            onClick={() => onPageChange(p)}
+          <button key={p} onClick={() => onPageChange(p)}
             className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
-              p === page
-                ? 'bg-jmr-green text-white shadow-md'
-                : 'text-gray-700 hover:bg-gray-100'
-            }`}
-          >
+              p === page ? 'bg-jmr-green text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'
+            }`}>
             {p}
           </button>
         ))}
 
-        {/* Ellipsis fin */}
         {getPages()[getPages().length - 1] < totalPages && (
           <>
-            {getPages()[getPages().length - 1] < totalPages - 1 && (
-              <span className="px-1 text-gray-400">…</span>
-            )}
-            <button
-              onClick={() => onPageChange(totalPages)}
-              className="w-9 h-9 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-            >{totalPages}</button>
+            {getPages()[getPages().length - 1] < totalPages - 1 &&
+              <span className="px-1 text-gray-400">…</span>}
+            <button onClick={() => onPageChange(totalPages)}
+              className="w-9 h-9 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors">
+              {totalPages}
+            </button>
           </>
         )}
 
-        {/* Página siguiente */}
-        <button
-          onClick={() => onPageChange(page + 1)}
-          disabled={page === totalPages}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="Página siguiente"
-        >
+        <button onClick={() => onPageChange(page + 1)} disabled={page === totalPages}
+          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           <ChevronRight className="w-4 h-4" />
         </button>
-
-        {/* Última página */}
-        <button
-          onClick={() => onPageChange(totalPages)}
-          disabled={page === totalPages}
-          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="Última página"
-        >
+        <button onClick={() => onPageChange(totalPages)} disabled={page === totalPages}
+          className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
           <ChevronsRight className="w-4 h-4" />
         </button>
       </div>
@@ -140,19 +105,41 @@ function ProductosContent() {
   const [loading,     setLoading]     = useState(true);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
 
-  // Filtros locales (con debounce en busqueda)
-  const [busquedaInput,      setBusquedaInput]      = useState(searchParams.get('busqueda') || '');
+  // ── Rango de precios del catálogo ──
+  const [catalogoMin, setCatalogoMin] = useState(0);
+  const [catalogoMax, setCatalogoMax] = useState(100000);
+
+  // Filtros locales
+  const [busquedaInput,         setBusquedaInput]         = useState(searchParams.get('busqueda') || '');
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState(searchParams.get('categoria') || '');
-  const [ordenar,            setOrdenar]            = useState('');
-  const [page,               setPage]               = useState(1);
+  const [ordenar,               setOrdenar]               = useState('');
+  const [page,                  setPage]                  = useState(1);
+
+  // Precio: null significa "sin filtro activo"
+  const [precioMin, setPrecioMin] = useState(null);
+  const [precioMax, setPrecioMax] = useState(null);
+  // Forzar remount del slider al limpiar (evita que el componente mantenga estado viejo)
+  const [sliderKey, setSliderKey] = useState(0);
 
   const busqueda = useDebounce(busquedaInput, 400);
   const { addToCart } = useCart();
-
-  // Referencia para scroll al cambiar página
   const topRef = useRef(null);
 
-  // ── Fetch de categorías (una sola vez) ──────────────────────────────────
+  // ── Fetch del rango de precios (una sola vez) ────────────────────────────
+  useEffect(() => {
+    fetch('/api/productos?rangoPrecios=true')
+      .then(r => r.json())
+      .then(({ min, max }) => {
+        setCatalogoMin(min);
+        setCatalogoMax(max);
+        // Inicializar filtros al rango completo
+        setPrecioMin(min);
+        setPrecioMax(max);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ── Fetch de categorías (una sola vez) ────────────────────────────────────
   useEffect(() => {
     fetch('/api/categorias')
       .then(r => r.json())
@@ -160,16 +147,26 @@ function ProductosContent() {
       .catch(console.error);
   }, []);
 
-  // ── Fetch de productos (se dispara cuando cambian los filtros o la página) ─
+  // ── Fetch de productos ────────────────────────────────────────────────────
   const fetchProductos = useCallback(async () => {
+    // Esperar a que tengamos el rango del catálogo antes de hacer la primera query
+    if (precioMin === null || precioMax === null) return;
+
     setLoading(true);
     try {
       const params = new URLSearchParams();
       params.set('page',     String(page));
       params.set('pageSize', String(PAGE_SIZE));
-      if (busqueda)             params.set('busqueda',  busqueda);
+      if (busqueda)              params.set('busqueda',  busqueda);
       if (categoriaSeleccionada) params.set('categoria', categoriaSeleccionada);
-      if (ordenar)              params.set('ordenar',   ordenar);
+      if (ordenar)               params.set('ordenar',   ordenar);
+
+      // Solo enviar filtro de precio si difiere del rango completo
+      const precioFiltrado = precioMin > catalogoMin || precioMax < catalogoMax;
+      if (precioFiltrado) {
+        params.set('precioMin', String(precioMin));
+        params.set('precioMax', String(precioMax));
+      }
 
       const response = await fetch(`/api/productos?${params.toString()}`);
       const data     = await response.json();
@@ -178,7 +175,6 @@ function ProductosContent() {
         setProductos(data.productos);
         setPagination(data.pagination);
       } else {
-        // Fallback para compatibilidad (si la API devuelve array directo)
         setProductos(Array.isArray(data) ? data : []);
         setPagination(null);
       }
@@ -187,20 +183,15 @@ function ProductosContent() {
     } finally {
       setLoading(false);
     }
-  }, [page, busqueda, categoriaSeleccionada, ordenar]);
+  }, [page, busqueda, categoriaSeleccionada, ordenar, precioMin, precioMax, catalogoMin, catalogoMax]);
 
-  useEffect(() => {
-    fetchProductos();
-  }, [fetchProductos]);
+  useEffect(() => { fetchProductos(); }, [fetchProductos]);
 
   // Volver a página 1 cuando cambia cualquier filtro
-  useEffect(() => {
-    setPage(1);
-  }, [busqueda, categoriaSeleccionada, ordenar]);
+  useEffect(() => { setPage(1); }, [busqueda, categoriaSeleccionada, ordenar, precioMin, precioMax]);
 
   const handlePageChange = (newPage) => {
     setPage(newPage);
-    // Scroll suave al inicio de la lista
     topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
@@ -208,17 +199,128 @@ function ProductosContent() {
     setBusquedaInput('');
     setCategoriaSeleccionada('');
     setOrdenar('');
+    setPrecioMin(catalogoMin);
+    setPrecioMax(catalogoMax);
+    setSliderKey(k => k + 1);
     setPage(1);
     router.push('/productos');
   };
 
-  const hayFiltrosActivos = busquedaInput || categoriaSeleccionada || ordenar;
+  const handlePrecioChange = (newMin, newMax) => {
+    setPrecioMin(newMin);
+    setPrecioMax(newMax);
+  };
+
+  const precioFiltrado =
+    precioMin !== null && precioMax !== null &&
+    (precioMin > catalogoMin || precioMax < catalogoMax);
+
+  const hayFiltrosActivos = busquedaInput || categoriaSeleccionada || ordenar || precioFiltrado;
+
+  // ── Sidebar de filtros (reutilizable en desktop y móvil) ─────────────────
+  const FiltrosContent = () => (
+    <>
+      {/* Búsqueda */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Buscar</label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={busquedaInput}
+            onChange={(e) => setBusquedaInput(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-jmr-green text-sm"
+          />
+          {busquedaInput && (
+            <button onClick={() => setBusquedaInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Categorías */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-gray-700 mb-3">Categorías</label>
+        <div className="space-y-1">
+          <button
+            onClick={() => setCategoriaSeleccionada('')}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+              !categoriaSeleccionada ? 'bg-jmr-green text-white' : 'hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span>Todas</span>
+              <span className="text-xs opacity-75">({pagination?.total ?? '…'})</span>
+            </div>
+          </button>
+          {categorias.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoriaSeleccionada(cat.id.toString())}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                categoriaSeleccionada === cat.id.toString()
+                  ? 'bg-jmr-green text-white'
+                  : 'hover:bg-gray-100 text-gray-700'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span>{cat.nombre}</span>
+                <span className="text-xs opacity-75">({cat._count?.productos ?? 0})</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Rango de precios ── */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <label className="block text-sm font-semibold text-gray-700">Precio</label>
+          {precioFiltrado && (
+            <button
+              onClick={() => { setPrecioMin(catalogoMin); setPrecioMax(catalogoMax); }}
+              className="text-xs text-jmr-green hover:underline"
+            >
+              Resetear
+            </button>
+          )}
+        </div>
+        {precioMin !== null && precioMax !== null && (
+          <PriceRangeSlider
+            key={sliderKey}
+            min={catalogoMin}
+            max={catalogoMax}
+            value={[precioMin, precioMax]}
+            onChange={handlePrecioChange}
+          />
+        )}
+      </div>
+
+      {/* Ordenar */}
+      <div>
+        <label className="block text-sm font-semibold text-gray-700 mb-2">Ordenar por</label>
+        <select
+          value={ordenar}
+          onChange={(e) => setOrdenar(e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-jmr-green bg-white text-sm"
+        >
+          <option value="">Más recientes</option>
+          <option value="nombre">Nombre A-Z</option>
+          <option value="precio-asc">Menor precio</option>
+          <option value="precio-desc">Mayor precio</option>
+        </select>
+      </div>
+    </>
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col lg:flex-row gap-8">
 
-        {/* ── Sidebar desktop ─────────────────────────────────────────────── */}
+        {/* ── Sidebar desktop ──────────────────────────────────────────── */}
         <aside className="hidden lg:block w-64 flex-shrink-0">
           <div className="bg-white rounded-lg shadow-md p-6 sticky top-24">
             <div className="flex items-center justify-between mb-6">
@@ -228,92 +330,20 @@ function ProductosContent() {
               </h2>
               {hayFiltrosActivos && (
                 <button onClick={limpiarFiltros} className="text-sm text-jmr-green hover:underline">
-                  Limpiar
+                  Limpiar todo
                 </button>
               )}
             </div>
-
-            {/* Búsqueda */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Buscar</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type="text"
-                  placeholder="Buscar..."
-                  value={busquedaInput}
-                  onChange={(e) => setBusquedaInput(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-jmr-green text-sm"
-                />
-                {busquedaInput && (
-                  <button
-                    onClick={() => setBusquedaInput('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Categorías */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">Categorías</label>
-              <div className="space-y-1">
-                <button
-                  onClick={() => setCategoriaSeleccionada('')}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                    !categoriaSeleccionada ? 'bg-jmr-green text-white' : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span>Todas</span>
-                    <span className="text-xs opacity-75">({pagination?.total ?? '…'})</span>
-                  </div>
-                </button>
-                {categorias.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setCategoriaSeleccionada(cat.id.toString())}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                      categoriaSeleccionada === cat.id.toString()
-                        ? 'bg-jmr-green text-white'
-                        : 'hover:bg-gray-100 text-gray-700'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span>{cat.nombre}</span>
-                      <span className="text-xs opacity-75">({cat._count?.productos ?? 0})</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Ordenar */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Ordenar por</label>
-              <select
-                value={ordenar}
-                onChange={(e) => setOrdenar(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-jmr-green bg-white text-sm"
-              >
-                <option value="">Más recientes</option>
-                <option value="nombre">Nombre A-Z</option>
-                <option value="precio-asc">Menor precio</option>
-                <option value="precio-desc">Mayor precio</option>
-              </select>
-            </div>
+            <FiltrosContent />
           </div>
         </aside>
 
-        {/* ── Main content ──────────────────────────────────────────────────── */}
+        {/* ── Main content ─────────────────────────────────────────────── */}
         <div className="flex-1" ref={topRef}>
 
           {/* Barra superior */}
           <div className="bg-white rounded-lg shadow-md p-4 mb-6">
             <div className="flex flex-col md:flex-row gap-4">
-              {/* Búsqueda */}
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
@@ -324,10 +354,8 @@ function ProductosContent() {
                   className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-jmr-green"
                 />
                 {busquedaInput && (
-                  <button
-                    onClick={() => setBusquedaInput('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
+                  <button onClick={() => setBusquedaInput('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                     <X className="w-5 h-5" />
                   </button>
                 )}
@@ -340,9 +368,9 @@ function ProductosContent() {
               >
                 <Filter className="w-5 h-5" />
                 Filtros
-                {(categoriaSeleccionada || ordenar) && (
+                {(categoriaSeleccionada || ordenar || precioFiltrado) && (
                   <span className="bg-white text-jmr-green rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
-                    {(categoriaSeleccionada ? 1 : 0) + (ordenar ? 1 : 0)}
+                    {(categoriaSeleccionada ? 1 : 0) + (ordenar ? 1 : 0) + (precioFiltrado ? 1 : 0)}
                   </span>
                 )}
               </button>
@@ -362,7 +390,7 @@ function ProductosContent() {
 
             {/* Filtros móvil expandidos */}
             {mostrarFiltros && (
-              <div className="lg:hidden mt-4 space-y-4 pt-4 border-t">
+              <div className="lg:hidden mt-4 pt-4 border-t space-y-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Categoría</label>
                   <select
@@ -376,6 +404,31 @@ function ProductosContent() {
                     ))}
                   </select>
                 </div>
+
+                {/* Precio en móvil */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-700">Rango de precio</label>
+                    {precioFiltrado && (
+                      <button
+                        onClick={() => { setPrecioMin(catalogoMin); setPrecioMax(catalogoMax); }}
+                        className="text-xs text-jmr-green hover:underline"
+                      >
+                        Resetear
+                      </button>
+                    )}
+                  </div>
+                  {precioMin !== null && precioMax !== null && (
+                    <PriceRangeSlider
+                      key={sliderKey}
+                      min={catalogoMin}
+                      max={catalogoMax}
+                      value={[precioMin, precioMax]}
+                      onChange={handlePrecioChange}
+                    />
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">Ordenar por</label>
                   <select
@@ -389,6 +442,7 @@ function ProductosContent() {
                     <option value="precio-desc">Mayor precio</option>
                   </select>
                 </div>
+
                 {hayFiltrosActivos && (
                   <button
                     onClick={limpiarFiltros}
@@ -403,11 +457,11 @@ function ProductosContent() {
           </div>
 
           {/* Tags de filtros activos */}
-          {(busqueda || categoriaSeleccionada) && (
+          {(busqueda || categoriaSeleccionada || precioFiltrado) && (
             <div className="mb-4 flex items-center gap-2 flex-wrap">
               {busqueda && (
                 <span className="inline-flex items-center gap-2 bg-jmr-green/10 text-jmr-green px-3 py-1 rounded-full text-sm">
-                  Búsqueda: "{busqueda}"
+                  Búsqueda: &quot;{busqueda}&quot;
                   <button onClick={() => setBusquedaInput('')} className="hover:bg-jmr-green/20 rounded-full p-0.5">
                     <X className="w-3 h-3" />
                   </button>
@@ -421,6 +475,17 @@ function ProductosContent() {
                   </button>
                 </span>
               )}
+              {precioFiltrado && (
+                <span className="inline-flex items-center gap-2 bg-jmr-green/10 text-jmr-green px-3 py-1 rounded-full text-sm">
+                  Precio: ${precioMin?.toLocaleString('es-AR')} – ${precioMax?.toLocaleString('es-AR')}
+                  <button
+                    onClick={() => { setPrecioMin(catalogoMin); setPrecioMax(catalogoMax); }}
+                    className="hover:bg-jmr-green/20 rounded-full p-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
             </div>
           )}
 
@@ -429,10 +494,8 @@ function ProductosContent() {
             <p className="mb-4 text-sm text-gray-600">
               {pagination.total === 0
                 ? 'No se encontraron productos'
-                : <>
-                    <span className="font-semibold text-gray-900">{pagination.total}</span>{' '}
-                    {pagination.total === 1 ? 'producto' : 'productos'} encontrados
-                  </>
+                : <><span className="font-semibold text-gray-900">{pagination.total}</span>{' '}
+                    {pagination.total === 1 ? 'producto' : 'productos'} encontrados</>
               }
             </p>
           )}
@@ -463,7 +526,6 @@ function ProductosContent() {
                   <ProductCard key={producto.id} producto={producto} onAddToCart={addToCart} />
                 ))}
               </div>
-
               <Pagination pagination={pagination} onPageChange={handlePageChange} />
             </>
           )}
@@ -473,7 +535,7 @@ function ProductosContent() {
   );
 }
 
-// ── Página principal con Suspense ────────────────────────────────────────────
+// ── Página con Suspense ──────────────────────────────────────────────────────
 export default function ProductosPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -483,7 +545,6 @@ export default function ProductosPage() {
           <p className="text-gray-600">Explora nuestro catálogo completo de marroquinería</p>
         </div>
       </div>
-
       <Suspense fallback={
         <div className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-6">

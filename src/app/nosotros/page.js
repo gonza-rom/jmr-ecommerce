@@ -21,11 +21,13 @@ export default function NosotrosPage() {
       <section className="py-16">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-12 items-center mb-16">
+            {/* ✅ sizes: ocupa 100vw en móvil, ~50vw en desktop (grid 2 cols) */}
             <div className="relative h-96 bg-gray-100 rounded-2xl overflow-hidden">
               <Image
                 src="/local-fachada.jpg"
                 alt="Fachada Marroquinería JMR"
                 fill
+                sizes="(max-width: 768px) 100vw, 50vw"
                 className="object-cover"
               />
             </div>
@@ -35,22 +37,22 @@ export default function NosotrosPage() {
               </h2>
               <div className="space-y-4 text-gray-700">
                 <p>
-                  A lo largo de mi trayectoria comercial, mi enfoque ha evolucionado hacia la 
-                  compra y reventa de mercadería, marcando un cambio significativo en mi negocio. 
-                  Inicialmente, comencé vendiendo cintos y billeteras artesanales en las calles, 
-                  pero con el tiempo, identifiqué oportunidades en el mercado y decidí ampliar 
+                  A lo largo de mi trayectoria comercial, mi enfoque ha evolucionado hacia la
+                  compra y reventa de mercadería, marcando un cambio significativo en mi negocio.
+                  Inicialmente, comencé vendiendo cintos y billeteras artesanales en las calles,
+                  pero con el tiempo, identifiqué oportunidades en el mercado y decidí ampliar
                   mis horizontes.
                 </p>
                 <p>
-                  En septiembre de 2003, alquilé mi primer local, proporcionando una plataforma 
-                  para exhibir y vender diversos productos de cuero. Este paso me permitió no 
-                  solo consolidar mi presencia en el mercado local sino también diversificar 
+                  En septiembre de 2003, alquilé mi primer local, proporcionando una plataforma
+                  para exhibir y vender diversos productos de cuero. Este paso me permitió no
+                  solo consolidar mi presencia en el mercado local sino también diversificar
                   mi oferta.
                 </p>
                 <p>
-                  Actualmente, gestiono con éxito dos sucursales, una en San Fernando del Valle 
-                  de Catamarca y otra en Valle Viejo. A través de una cuidadosa selección de 
-                  mercadería de alta calidad, buscamos satisfacer las necesidades cambiantes 
+                  Actualmente, gestiono con éxito dos sucursales, una en San Fernando del Valle
+                  de Catamarca y otra en Valle Viejo. A través de una cuidadosa selección de
+                  mercadería de alta calidad, buscamos satisfacer las necesidades cambiantes
                   de nuestros clientes.
                 </p>
               </div>
@@ -61,11 +63,13 @@ export default function NosotrosPage() {
           <div className="mb-16">
             <h2 className="text-3xl font-bold text-center mb-8">Nuestro Local</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* ✅ sizes: 100vw en móvil, ~33vw en desktop (grid 3 cols) */}
               <div className="relative h-64 rounded-lg overflow-hidden shadow-lg hover:shadow-xl transition-shadow">
                 <Image
                   src="/local-interior-1.jpg"
                   alt="Interior Marroquinería JMR 1"
                   fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover hover:scale-105 transition-transform duration-300"
                 />
               </div>
@@ -74,6 +78,7 @@ export default function NosotrosPage() {
                   src="/local-interior-2.jpg"
                   alt="Interior Marroquinería JMR 2"
                   fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover hover:scale-105 transition-transform duration-300"
                 />
               </div>
@@ -82,6 +87,7 @@ export default function NosotrosPage() {
                   src="/local-interior-3.jpg"
                   alt="Interior Marroquinería JMR 3"
                   fill
+                  sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover hover:scale-105 transition-transform duration-300"
                 />
               </div>
@@ -144,9 +150,7 @@ export default function NosotrosPage() {
               <h3 className="text-xl font-bold mb-4 text-jmr-green">Sucursal Central - San Fernando</h3>
               <p className="text-gray-700 mb-2">📍 Rivadavia 564</p>
               <p className="text-gray-700 mb-2">📞 +54 383 492-7252</p>
-              <p className="text-gray-600 text-sm mb-3">
-                En el corazón de la ciudad
-              </p>
+              <p className="text-gray-600 text-sm mb-3">En el corazón de la ciudad</p>
               <a
                 href="https://maps.app.goo.gl/qAhZgq3nbN8k6MRx7"
                 target="_blank"
@@ -160,9 +164,7 @@ export default function NosotrosPage() {
               <h3 className="text-xl font-bold mb-4 text-jmr-green">Valle Viejo</h3>
               <p className="text-gray-700 mb-2">📍 Av Pte Castillo 1165</p>
               <p className="text-gray-700 mb-2">📞 +54 383 492-7252</p>
-              <p className="text-gray-600 text-sm mb-3">
-                Ubicación estratégica con estacionamiento
-              </p>
+              <p className="text-gray-600 text-sm mb-3">Ubicación estratégica con estacionamiento</p>
               <a
                 href="https://maps.app.goo.gl/QoTBKrUCSEzssJ8C7"
                 target="_blank"

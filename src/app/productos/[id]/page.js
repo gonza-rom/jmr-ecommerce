@@ -9,12 +9,10 @@ import { useCart } from '@/context/CartContext';
 import ProductGallery from '@/components/ProductGallery';
 import ProductCard from '@/components/ProductCard';
 
-// Variantes de animación reutilizables
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   visible: (i = 0) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { duration: 0.4, delay: i * 0.08, ease: 'easeOut' },
   }),
 };
@@ -45,7 +43,6 @@ export default function ProductoDetallePage() {
       setError(null);
 
       const response = await fetch(`/api/productos/${params.id}`);
-
       if (!response.ok) {
         setError(response.status === 404 ? 'not_found' : 'error');
         setProducto(null);
@@ -54,8 +51,6 @@ export default function ProductoDetallePage() {
 
       const data = await response.json();
       setProducto(data);
-
-      // Cargar productos relacionados
       fetchRelacionados(data.categoriaId, data.id);
     } catch (err) {
       console.error('Error al cargar producto:', err);
@@ -66,14 +61,16 @@ export default function ProductoDetallePage() {
     }
   };
 
+  // ✅ MEJORADO: pide directamente a la API solo los 4 relacionados
+  // La DB filtra por categoría y excluye el producto actual — no se bajan todos
   const fetchRelacionados = async (categoriaId, productoId) => {
     try {
-      const response = await fetch('/api/productos');
-      const todos = await response.json();
-      const relacionados = todos
-        .filter(p => p.categoriaId === categoriaId && p.id !== productoId)
-        .slice(0, 4);
-      setProductosRelacionados(relacionados);
+      const response = await fetch(
+        `/api/productos?categoria=${categoriaId}&exclude=${productoId}&limit=4`
+      );
+      const data = await response.json();
+      // La API devuelve array directo cuando se usa limit sin paginación
+      setProductosRelacionados(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error('Error al cargar relacionados:', err);
     }
@@ -101,18 +98,12 @@ export default function ProductoDetallePage() {
   const handleCompartir = async () => {
     const url = window.location.href;
     if (navigator.share) {
-      try {
-        await navigator.share({ title: producto.nombre, text: `Mira este producto: ${producto.nombre}`, url });
-      } catch {}
+      try { await navigator.share({ title: producto.nombre, text: `Mira este producto: ${producto.nombre}`, url }); } catch {}
     } else {
-      try {
-        await navigator.clipboard.writeText(url);
-        alert('¡Enlace copiado al portapapeles!');
-      } catch {}
+      try { await navigator.clipboard.writeText(url); alert('¡Enlace copiado al portapapeles!'); } catch {}
     }
   };
 
-  // ── Loading ──
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -124,7 +115,6 @@ export default function ProductoDetallePage() {
     );
   }
 
-  // ── Error ──
   if (error || !producto) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -136,22 +126,18 @@ export default function ProductoDetallePage() {
             </h2>
             <p className="text-gray-600 mb-6">
               {error === 'not_found'
-                ? 'El producto que buscas no existe o ha sido eliminado.'
+                ? 'El producto que buscás no existe o ha sido eliminado.'
                 : 'Hubo un problema al cargar el producto. Por favor, intenta de nuevo.'}
             </p>
             <div className="space-y-3">
-              <Link
-                href="/productos"
-                className="inline-flex items-center gap-2 bg-jmr-green hover:bg-jmr-green-dark text-white px-6 py-3 rounded-lg font-semibold transition-colors"
-              >
+              <Link href="/productos"
+                className="inline-flex items-center gap-2 bg-jmr-green hover:bg-jmr-green-dark text-white px-6 py-3 rounded-lg font-semibold transition-colors">
                 <ArrowLeft className="w-5 h-5" />
                 Ver Todos los Productos
               </Link>
               {error === 'error' && (
-                <button
-                  onClick={fetchProducto}
-                  className="block w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors"
-                >
+                <button onClick={fetchProducto}
+                  className="block w-full bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-colors">
                   Reintentar
                 </button>
               )}
@@ -171,10 +157,7 @@ export default function ProductoDetallePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Breadcrumb */}
-      <motion.div
-        className="bg-white border-b"
-        initial="hidden" animate="visible" variants={fadeIn}
-      >
+      <motion.div className="bg-white border-b" initial="hidden" animate="visible" variants={fadeIn}>
         <div className="container mx-auto px-4 py-3 md:py-4">
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <Link href="/" className="text-gray-500 hover:text-jmr-green transition-colors">Inicio</Link>
@@ -199,56 +182,44 @@ export default function ProductoDetallePage() {
         <motion.button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-600 hover:text-jmr-green mb-4 md:mb-6 transition-colors text-sm md:text-base"
-          initial={{ opacity: 0, x: -16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, x: -16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}
         >
           <ArrowLeft className="w-4 h-4 md:w-5 md:h-5" />
           Volver
         </motion.button>
 
-        {/* ── Grid principal ── */}
+        {/* Grid principal */}
         <div className="grid lg:grid-cols-2 gap-4 md:gap-8 mb-8 md:mb-12">
 
           {/* Galería */}
           <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
             <ProductGallery producto={producto} />
-            <button
-              onClick={handleCompartir}
-              className="w-full mt-3 md:mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 md:py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm md:text-base"
-            >
+            <button onClick={handleCompartir}
+              className="w-full mt-3 md:mt-4 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 md:py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-sm md:text-base">
               <Share2 className="w-4 h-4 md:w-5 md:h-5" />
               Compartir Producto
             </button>
           </motion.div>
 
-          {/* Info del producto */}
+          {/* Info */}
           <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={1}>
             <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8 lg:sticky lg:top-24">
 
-              {/* Categoría */}
               {producto.categoria && (
-                <Link
-                  href={`/productos?categoria=${producto.categoriaId}`}
-                  className="inline-block text-xs md:text-sm text-jmr-green font-semibold mb-2 hover:underline"
-                >
+                <Link href={`/productos?categoria=${producto.categoriaId}`}
+                  className="inline-block text-xs md:text-sm text-jmr-green font-semibold mb-2 hover:underline">
                   {producto.categoria.nombre}
                 </Link>
               )}
 
-              {/* Nombre */}
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2 md:mb-4 leading-tight">
                 {producto.nombre}
               </h1>
 
-              {/* Código */}
               {producto.codigoProducto && (
-                <p className="text-xs md:text-sm text-gray-500 mb-3 md:mb-4">
-                  Código: {producto.codigoProducto}
-                </p>
+                <p className="text-xs md:text-sm text-gray-500 mb-3 md:mb-4">Código: {producto.codigoProducto}</p>
               )}
 
-              {/* Precio */}
               <div className="mb-4 md:mb-6 pb-4 md:pb-6 border-b">
                 <span className="text-4xl md:text-5xl font-bold text-jmr-green">
                   ${producto.precio.toFixed(2)}
@@ -256,17 +227,13 @@ export default function ProductoDetallePage() {
                 <p className="text-xs md:text-sm text-gray-500 mt-1">Precio por unidad</p>
               </div>
 
-              {/* Descripción */}
               {producto.descripcion && (
                 <div className="mb-4 md:mb-6 pb-4 md:pb-6 border-b">
                   <h3 className="font-semibold text-gray-900 mb-2 text-sm md:text-base">Descripción</h3>
-                  <p className="text-gray-700 leading-relaxed text-sm md:text-base">
-                    {producto.descripcion}
-                  </p>
+                  <p className="text-gray-700 leading-relaxed text-sm md:text-base">{producto.descripcion}</p>
                 </div>
               )}
 
-              {/* Proveedor */}
               {producto.proveedor && (
                 <div className="mb-4 md:mb-6 pb-4 md:pb-6 border-b">
                   <h3 className="font-semibold text-gray-900 mb-1 text-sm md:text-base">Marca/Proveedor</h3>
@@ -274,7 +241,6 @@ export default function ProductoDetallePage() {
                 </div>
               )}
 
-              {/* Stock */}
               <div className="mb-4 md:mb-6">
                 <div className="flex items-center gap-2">
                   <Package className="w-4 h-4 md:w-5 md:h-5 text-gray-600 flex-shrink-0" />
@@ -284,37 +250,23 @@ export default function ProductoDetallePage() {
                 </div>
               </div>
 
-              {/* Selector de cantidad */}
               {producto.stock > 0 && (
                 <div className="mb-4 md:mb-6">
-                  <label className="block text-gray-700 font-semibold mb-2 text-sm md:text-base">
-                    Cantidad:
-                  </label>
+                  <label className="block text-gray-700 font-semibold mb-2 text-sm md:text-base">Cantidad:</label>
                   <div className="flex items-center gap-3 md:gap-4 flex-wrap">
                     <div className="flex items-center border border-gray-300 rounded-lg">
-                      <button
-                        onClick={() => setCantidad(Math.max(1, cantidad - 1))}
-                        className="p-2.5 md:p-3 hover:bg-gray-100 transition-colors"
-                        aria-label="Disminuir"
-                      >
+                      <button onClick={() => setCantidad(Math.max(1, cantidad - 1))}
+                        className="p-2.5 md:p-3 hover:bg-gray-100 transition-colors" aria-label="Disminuir">
                         <Minus className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
                       <input
-                        type="number"
-                        value={cantidad}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 1;
-                          setCantidad(Math.max(1, Math.min(producto.stock, val)));
-                        }}
+                        type="number" value={cantidad}
+                        onChange={(e) => { const val = parseInt(e.target.value) || 1; setCantidad(Math.max(1, Math.min(producto.stock, val))); }}
                         className="w-14 md:w-20 text-center font-semibold outline-none text-sm md:text-base"
-                        min="1"
-                        max={producto.stock}
+                        min="1" max={producto.stock}
                       />
-                      <button
-                        onClick={() => setCantidad(Math.min(producto.stock, cantidad + 1))}
-                        className="p-2.5 md:p-3 hover:bg-gray-100 transition-colors"
-                        aria-label="Aumentar"
-                      >
+                      <button onClick={() => setCantidad(Math.min(producto.stock, cantidad + 1))}
+                        className="p-2.5 md:p-3 hover:bg-gray-100 transition-colors" aria-label="Aumentar">
                         <Plus className="w-4 h-4 md:w-5 md:h-5" />
                       </button>
                     </div>
@@ -328,60 +280,43 @@ export default function ProductoDetallePage() {
                 </div>
               )}
 
-              {/* Botones de acción */}
               <div className="space-y-2 md:space-y-3">
                 {producto.stock > 0 ? (
                   <>
-                    <motion.button
-                      onClick={handleAgregarCarrito}
-                      whileTap={{ scale: 0.97 }}
+                    <motion.button onClick={handleAgregarCarrito} whileTap={{ scale: 0.97 }}
                       className={`w-full px-6 py-3.5 md:py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-base md:text-lg shadow-md ${
-                        agregado
-                          ? 'bg-green-600 text-white'
-                          : 'bg-jmr-green hover:bg-jmr-green-dark text-white'
-                      }`}
-                    >
+                        agregado ? 'bg-green-600 text-white' : 'bg-jmr-green hover:bg-jmr-green-dark text-white'
+                      }`}>
                       <ShoppingBag className="w-5 h-5 md:w-6 md:h-6" />
                       <AnimatePresence mode="wait">
-                        <motion.span
-                          key={agregado ? 'agregado' : 'agregar'}
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.2 }}
-                        >
+                        <motion.span key={agregado ? 'agregado' : 'agregar'}
+                          initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
                           {agregado ? '¡Agregado al carrito!' : 'Agregar al Carrito'}
                         </motion.span>
                       </AnimatePresence>
                     </motion.button>
 
-                    <motion.button
-                      onClick={handleComprarWhatsApp}
-                      whileTap={{ scale: 0.97 }}
-                      className="w-full bg-[#25D366] hover:bg-[#20BA5A] text-white px-6 py-3.5 md:py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-base md:text-lg shadow-md"
-                    >
+                    <motion.button onClick={handleComprarWhatsApp} whileTap={{ scale: 0.97 }}
+                      className="w-full bg-[#25D366] hover:bg-[#20BA5A] text-white px-6 py-3.5 md:py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-base md:text-lg shadow-md">
                       <WhatsAppIcon />
                       Consultar por WhatsApp
                     </motion.button>
                   </>
                 ) : (
-                  <motion.button
-                    onClick={handleComprarWhatsApp}
-                    whileTap={{ scale: 0.97 }}
-                    className="w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-3.5 md:py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-base md:text-lg shadow-md"
-                  >
+                  <motion.button onClick={handleComprarWhatsApp} whileTap={{ scale: 0.97 }}
+                    className="w-full bg-gray-600 hover:bg-gray-700 text-white px-6 py-3.5 md:py-4 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 text-base md:text-lg shadow-md">
                     <WhatsAppIcon />
                     Consultar Disponibilidad
                   </motion.button>
                 )}
               </div>
 
-              {/* Garantías */}
               <div className="mt-6 md:mt-8 pt-4 md:pt-6 border-t space-y-2 md:space-y-3">
                 {[
                   { icon: Shield, text: 'Productos de calidad garantizada' },
-                  { icon: Truck, text: 'Retiro en nuestras sucursales' },
-                  { icon: Star, text: 'Más de 20 años de experiencia' },
+                  { icon: Truck,  text: 'Retiro en nuestras sucursales' },
+                  { icon: Star,   text: 'Más de 20 años de experiencia' },
                 ].map(({ icon: Icon, text }) => (
                   <div key={text} className="flex items-center gap-3 text-xs md:text-sm text-gray-700">
                     <Icon className="w-4 h-4 md:w-5 md:h-5 text-jmr-green flex-shrink-0" />
@@ -393,29 +328,15 @@ export default function ProductoDetallePage() {
           </motion.div>
         </div>
 
-        {/* ── Información adicional ── */}
-        <motion.div
-          className="bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8 mb-8 md:mb-12"
-          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}
-        >
+        {/* Información adicional */}
+        <motion.div className="bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8 mb-8 md:mb-12"
+          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp}>
           <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6">Información Adicional</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
             {[
-              {
-                icon: Truck,
-                title: 'Retiro en Tienda',
-                desc: 'Retirá tu compra en nuestras sucursales de San Fernando o Valle Viejo.',
-              },
-              {
-                icon: Shield,
-                title: 'Garantía',
-                desc: 'Todos nuestros productos cuentan con garantía del fabricante.',
-              },
-              {
-                icon: Package,
-                title: 'Stock Real',
-                desc: 'La disponibilidad mostrada es en tiempo real. Confirmá antes de visitar.',
-              },
+              { icon: Truck,    title: 'Retiro en Tienda',  desc: 'Retirá tu compra en nuestras sucursales de San Fernando o Valle Viejo.' },
+              { icon: Shield,   title: 'Garantía',          desc: 'Todos nuestros productos cuentan con garantía del fabricante.' },
+              { icon: Package,  title: 'Stock Real',        desc: 'La disponibilidad mostrada es en tiempo real. Confirmá antes de visitar.' },
             ].map(({ icon: Icon, title, desc }, i) => (
               <motion.div key={title} variants={fadeUp} custom={i}>
                 <h3 className="font-semibold text-gray-900 mb-2 flex items-center gap-2 text-sm md:text-base">
@@ -428,35 +349,21 @@ export default function ProductoDetallePage() {
           </div>
         </motion.div>
 
-        {/* ── Productos Relacionados ── */}
+        {/* Productos Relacionados */}
         {productosRelacionados.length > 0 && (
-          <motion.section
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} variants={fadeIn}
-          >
+          <motion.section initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} variants={fadeIn}>
             <div className="flex items-center justify-between mb-4 md:mb-6">
-              <h2 className="text-xl md:text-2xl font-bold text-gray-900">
-                Productos Relacionados
-              </h2>
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900">Productos Relacionados</h2>
               {producto.categoria && (
-                <Link
-                  href={`/productos?categoria=${producto.categoriaId}`}
-                  className="text-sm text-jmr-green hover:underline font-medium whitespace-nowrap"
-                >
+                <Link href={`/productos?categoria=${producto.categoriaId}`}
+                  className="text-sm text-jmr-green hover:underline font-medium whitespace-nowrap">
                   Ver todos →
                 </Link>
               )}
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
               {productosRelacionados.map((p, i) => (
-                <motion.div
-                  key={p.id}
-                  variants={fadeUp}
-                  custom={i}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
-                >
+                <motion.div key={p.id} variants={fadeUp} custom={i} initial="hidden" whileInView="visible" viewport={{ once: true }}>
                   <ProductCard producto={p} onAddToCart={addToCart} />
                 </motion.div>
               ))}

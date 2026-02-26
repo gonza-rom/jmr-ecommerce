@@ -6,6 +6,12 @@ import { CartProvider } from '@/context/CartContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
+export const viewport = {
+  themeColor: '#16a34a',
+  width: 'device-width',
+  initialScale: 1,
+};
+
 export const metadata = {
   title: 'Marroquinería JMR - Tienda Online | Mochilas, Bolsos y Carteras en Catamarca',
   description: 'Venta de productos de marroquinería de alta calidad en Catamarca. Mochilas, bolsos, carteras, billeteras y más. Más de 20 años de experiencia. Sucursales en San Fernando y Valle Viejo.',
@@ -52,6 +58,15 @@ export const metadata = {
   alternates: {
     canonical: 'https://www.jmrmarroquineria.com.ar',
   },
+  // ✅ Reemplaza las meta tags manuales deprecadas
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+  },
+  other: {
+    // ✅ Nueva meta tag estándar (reemplaza apple-mobile-web-app-capable)
+    'mobile-web-app-capable': 'yes',
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' },
@@ -68,13 +83,10 @@ export default function RootLayout({ children }) {
   return (
     <html lang="es-AR">
       <head>
+        {/* Solo lo que metadata no puede manejar */}
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <link rel="icon" type="image/png" sizes="32x32" href="/logo-jmr.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/logo-jmr.png" />
-        <meta name="theme-color" content="#16a34a" />
-        <meta name="msapplication-TileColor" content="#16a34a" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className={inter.className}>
         <CartProvider>
@@ -82,7 +94,7 @@ export default function RootLayout({ children }) {
           <main className="min-h-screen">
             {children}
           </main>
-          <Footer />        
+          <Footer />
         </CartProvider>
       </body>
     </html>

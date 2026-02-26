@@ -21,10 +21,12 @@ export default function Footer() {
           <div>
             <div className="relative w-40 h-20 mb-4 bg-white rounded-lg p-2">
               <Image
-                src="/logo-jmr.png"
+                src="/logo-jmr-removebg.png"
                 alt="Marroquinería JMR"
                 fill
+                sizes="(max-width: 640px) 128px, 160px"
                 className="object-contain"
+                priority
               />
             </div>
             <p className="text-sm mb-4">

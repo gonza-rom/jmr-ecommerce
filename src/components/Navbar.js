@@ -45,9 +45,10 @@ export default function Navbar() {
             <Link href="/" className="flex items-center flex-shrink-0">
               <div className="relative w-32 h-16 sm:w-40 sm:h-20">
                 <Image
-                  src="/logo-jmr.png"
+                  src="/logo-jmr-removebg.png"
                   alt="Marroquinería JMR"
                   fill
+                  sizes="(max-width: 640px) 128px, 160px"
                   className="object-contain"
                   priority
                 />

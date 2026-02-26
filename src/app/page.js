@@ -42,7 +42,7 @@ export default function Home() {
 
   return (
     <div>
-      {/* Hero Section con Galería */}
+      {/* Hero Section */}
       <section className="relative bg-gradient-to-r from-jmr-green to-jmr-green-dark text-white py-12 md:py-20">
         <div className="container mx-auto px-4">
           <div className="grid md:grid-cols-2 gap-8 items-center">
@@ -79,13 +79,15 @@ export default function Home() {
 
             {/* Galería de fotos del local */}
             <div className="grid grid-cols-2 gap-4">
+              {/* ✅ sizes agregado: ocupa ~50vw en móvil, ~25vw en desktop (mitad del grid de 2 cols) */}
               <div className="relative h-48 md:h-64 rounded-lg overflow-hidden shadow-xl">
                 <Image
                   src="/local-fachada.jpg"
                   alt="Fachada Marroquinería JMR"
                   fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
                   className="object-cover"
-                  priority
+                  
                 />
               </div>
               <div className="relative h-48 md:h-64 rounded-lg overflow-hidden shadow-xl">
@@ -93,17 +95,20 @@ export default function Home() {
                   src="/local-interior-1.jpg"
                   alt="Interior Marroquinería JMR"
                   fill
+                  sizes="(max-width: 768px) 50vw, 25vw"
                   className="object-cover"
-                  priority
+                  
                 />
               </div>
+              {/* ✅ Esta ocupa todo el ancho de su columna (col-span-2) */}
               <div className="relative h-48 md:h-64 rounded-lg overflow-hidden shadow-xl col-span-2">
                 <Image
                   src="/local-interior-2.jpg"
                   alt="Productos Marroquinería JMR"
                   fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
                   className="object-cover"
-                  priority
+                  
                 />
               </div>
             </div>
@@ -249,7 +254,6 @@ export default function Home() {
             <>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
                 {productosDestacados.map((producto) => (
-                  // ✅ Usa el componente compartido que soporta imagenes[]
                   <ProductCard
                     key={producto.id}
                     producto={producto}
@@ -257,7 +261,6 @@ export default function Home() {
                   />
                 ))}
               </div>
-
               <div className="text-center">
                 <Link
                   href="/productos"
@@ -276,7 +279,6 @@ export default function Home() {
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="text-3xl font-bold text-center mb-12">Nuestras Marcas</h2>
-          
           <div className="relative overflow-hidden">
             <div className="flex animate-scroll space-x-8">
               {/* Primera vuelta */}
@@ -321,7 +323,6 @@ export default function Home() {
               <MarcaLogo nombre="Biwo" />
             </div>
           </div>
-          
           <p className="text-center text-gray-500 mt-8 text-sm">
             Y muchas marcas más en nuestras sucursales
           </p>
@@ -339,7 +340,8 @@ function MarcaLogo({ nombre }) {
         alt={`Logo ${nombre}`}
         width={150}
         height={80}
-        className="object-contain max-h-20"
+        style={{ width: 'auto', height: 'auto', maxHeight: '80px' }}
+        className="object-contain"
         onError={(e) => {
           e.target.style.display = 'none';
           e.target.parentElement.innerHTML = `<span class="font-bold text-gray-700 text-lg">${nombre}</span>`;
