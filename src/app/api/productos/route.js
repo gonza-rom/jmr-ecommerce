@@ -77,11 +77,36 @@ export async function GET(request) {
     }
 
     // ── Construcción del ORDER BY ──
-    let orderBy = { createdAt: 'desc' };
-    if (ordenar === 'precio-asc')  orderBy = { precio: 'asc'  };
-    if (ordenar === 'precio-desc') orderBy = { precio: 'desc' };
-    if (ordenar === 'nombre')      orderBy = { nombre: 'asc'  };
-    if (ordenar === 'recientes')   orderBy = { createdAt: 'desc' };
+    // ⭐ SIEMPRE priorizar productos con imagen primero
+    let orderBy = [
+      { imagen: { sort: 'desc', nulls: 'last' } }, // Con imagen primero
+      { createdAt: 'desc' } // Luego por más recientes
+    ];
+    
+    if (ordenar === 'precio-asc')  {
+      orderBy = [
+        { imagen: { sort: 'desc', nulls: 'last' } },
+        { precio: 'asc' }
+      ];
+    }
+    if (ordenar === 'precio-desc') {
+      orderBy = [
+        { imagen: { sort: 'desc', nulls: 'last' } },
+        { precio: 'desc' }
+      ];
+    }
+    if (ordenar === 'nombre') {
+      orderBy = [
+        { imagen: { sort: 'desc', nulls: 'last' } },
+        { nombre: 'asc' }
+      ];
+    }
+    if (ordenar === 'recientes') {
+      orderBy = [
+        { imagen: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' }
+      ];
+    }
 
     // ── Modo destacados: solo para el home, sin paginación ──
     if (destacados) {

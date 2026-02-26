@@ -34,7 +34,6 @@ export default function Home() {
     { nombre: 'Modo', logo: 'modo.png' },
     { nombre: 'VISA', logo: 'visa.png' },
     { nombre: 'Mastercard', logo: 'mastercard.png' },
-    { nombre: 'American Express', logo: 'american-express.png' },
     { nombre: 'Cabal', logo: 'cabal.png' },
     { nombre: 'Naranja X', logo: 'naranja-x.png' },
     { nombre: 'Centrocard', logo: 'centrocard.png' },
@@ -170,11 +169,11 @@ export default function Home() {
             <h3 className="text-center font-semibold text-gray-700 mb-6">
               Tarjetas y billeteras aceptadas:
             </h3>
-            <div className="grid grid-cols-3 md:grid-cols-6 lg:grid-cols-11 gap-4">
+            <div className="flex flex-wrap justify-center gap-4 max-w-5xl mx-auto">
               {mediosDePago.map((medio) => (
                 <div
                   key={medio.nombre}
-                  className="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow flex items-center justify-center h-20"
+                  className="bg-white rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow flex items-center justify-center h-20 w-20"
                   title={medio.nombre}
                 >
                   <Image
