@@ -20,7 +20,7 @@ export default function Home() {
     try {
       const response = await fetch('/api/productos?destacados=true&limit=8');
       const data = await response.json();
-      setProductosDestacados(data);
+      setProductosDestacados(data.productos ?? []);
     } catch (error) {
       console.error('Error al cargar productos:', error);
     } finally {

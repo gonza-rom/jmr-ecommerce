@@ -108,15 +108,14 @@ function ProductosContent() {
   const { addToCart } = useCart();
   const topRef = useRef(null);
 
+  // ✅ Reemplazar con valores por defecto
   useEffect(() => {
-    fetch('/api/productos?rangoPrecios=true')
-      .then(r => r.json())
-      .then(({ min, max }) => {
-        setCatalogoMin(min); setCatalogoMax(max);
-        setPrecioMin(min);   setPrecioMax(max);
-      }).catch(console.error);
+    setCatalogoMin(0);
+    setCatalogoMax(500000);
+    setPrecioMin(0);
+    setPrecioMax(500000);
   }, []);
-
+  
   useEffect(() => {
     fetch('/api/categorias')
       .then(r => r.json())
@@ -125,7 +124,6 @@ function ProductosContent() {
   }, []);
 
   const fetchProductos = useCallback(async () => {
-    if (precioMin === null || precioMax === null) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -141,7 +139,8 @@ function ProductosContent() {
       const response = await fetch(`/api/productos?${params.toString()}`);
       const data = await response.json();
       if (data.productos) {
-        setProductos(data.productos); setPagination(data.pagination);
+        setProductos(data.productos); 
+        setPagination(data.meta); // ← cambiar .pagination por .meta
       } else {
         setProductos(Array.isArray(data) ? data : []); setPagination(null);
       }
