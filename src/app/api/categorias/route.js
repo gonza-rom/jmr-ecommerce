@@ -5,10 +5,12 @@ export const revalidate = 300;
 export async function GET() {
   try {
     const categorias = await getCategorias();
-    return Response.json(categorias);
-
+    // Garantizar que siempre devuelve un array
+    return Response.json(Array.isArray(categorias) ? categorias : []);
   } catch (error) {
     console.error("Error al obtener categorías:", error);
-    return Response.json({ error: error.message }, { status: 500 });
+    // Devolver array vacío en vez de objeto de error
+    // para que el cliente no falle con .map()
+    return Response.json([]);
   }
 }
