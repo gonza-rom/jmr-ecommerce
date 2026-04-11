@@ -8,9 +8,8 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'jmr-green': '#16a34a',
-        'jmr-green-dark': '#15803d',
-        'jmr-green-light': '#22c55e',
+      'jmr-green':      '#6DBE45',
+      'jmr-green-dark': '#286c00',
       },
     },
   },

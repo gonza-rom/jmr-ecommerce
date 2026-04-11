@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Plus, Minus, Trash2, ShoppingBag } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import { useCart } from '@/context/CartContext';
 import { showToast } from 'nextjs-toast-notify';
@@ -23,27 +23,16 @@ export default function Cart() {
       showToast.warning('⚠️ El carrito está vacío');
       return;
     }
-
-    // Construir mensaje
     let mensaje = '¡Hola! Me gustaría hacer el siguiente pedido:\n\n';
-    
     cart.forEach((item, index) => {
       mensaje += `${index + 1}. *${item.nombre}*\n`;
       mensaje += `   Cantidad: ${item.cantidad}\n`;
       mensaje += `   Precio unitario: $${item.precio.toFixed(2)}\n`;
       mensaje += `   Subtotal: $${(item.precio * item.cantidad).toFixed(2)}\n\n`;
     });
-
     mensaje += `*TOTAL: $${getTotal().toFixed(2)}*\n\n`;
     mensaje += '¿Podrían confirmar la disponibilidad? ¡Gracias!';
-
-    // Codificar mensaje para URL
-    const mensajeCodificado = encodeURIComponent(mensaje);
-    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${mensajeCodificado}`;
-
-    // Abrir WhatsApp
-    window.open(url, '_blank');
-    
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`, '_blank');
     showToast.success('📱 Abriendo WhatsApp...');
   };
 
@@ -53,101 +42,152 @@ export default function Cart() {
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
+        className="close-overlay"
         onClick={() => setIsOpen(false)}
+        style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.4)',
+          zIndex: 40, transition: 'opacity 0.2s',
+        }}
       />
 
-      {/* Cart sidebar */}
-      <div className="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-2xl z-50 flex flex-col animate-slide-in">
+      {/* Panel */}
+      <div
+        className="cart-panel"
+        style={{
+          position: 'fixed', right: 0, top: 0, height: '100%',
+          width: '100%', maxWidth: '420px',
+          background: '#f9f9f9',
+          boxShadow: '-8px 0 48px rgba(0,0,0,0.12)',
+          zIndex: 50,
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
         {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between bg-jmr-green text-white">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5" />
-            <h2 className="text-lg font-semibold">Mi Carrito ({cart.length})</h2>
-          </div>
+        <div style={{
+          padding: '1.5rem 1.5rem 1.25rem',
+          borderBottom: '1px solid #e8e8e8',
+          background: 'white',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 900, letterSpacing: '-0.03em', color: '#1a1c1c' }}>
+            Tu Carrito
+          </h2>
           <button
             onClick={() => setIsOpen(false)}
-            className="p-1 hover:bg-jmr-green-dark rounded transition-colors"
+            style={{
+              background: '#f3f3f3', border: 'none', borderRadius: '50%',
+              width: '2.25rem', height: '2.25rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#5e5e5e',
+            }}
           >
-            <X className="w-6 h-6" />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Cart items */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* Items */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem' }}>
           {cart.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <ShoppingBag className="w-16 h-16 mb-4" />
-              <p className="text-lg">Tu carrito está vacío</p>
-              <p className="text-sm mt-2">¡Agrega productos para empezar!</p>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#aaa', gap: '0.75rem', paddingBottom: '4rem' }}>
+              <ShoppingBag size={64} strokeWidth={1} />
+              <p style={{ fontWeight: 600, fontSize: '1rem', color: '#5e5e5e' }}>Tu carrito está vacío</p>
+              <p style={{ fontSize: '0.875rem' }}>¡Agrega productos para empezar!</p>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  marginTop: '0.5rem', padding: '0.75rem 1.5rem',
+                  background: '#6DBE45', color: 'white', border: 'none',
+                  borderRadius: '0.5rem', fontWeight: 700, cursor: 'pointer', fontSize: '0.875rem',
+                }}
+              >
+                Seguir comprando
+              </button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               {cart.map((item) => (
-                <div key={item.id} className="flex gap-3 border-b pb-4 hover:bg-gray-50 transition-colors rounded-lg p-2">
-                  {/* Imagen */}
-                  <div className="relative w-20 h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                <div key={item.id} className="cart-item" style={{
+                  display: 'flex', gap: '1rem',
+                  background: 'white', borderRadius: '0.75rem',
+                  padding: '1rem',
+                }}>
+                  {/* Image */}
+                  <div style={{
+                    position: 'relative', width: '80px', height: '100px',
+                    background: '#f3f3f3', borderRadius: '0.5rem', overflow: 'hidden', flexShrink: 0,
+                  }}>
                     {item.imagen ? (
-                      <Image
-                        src={item.imagen}
-                        alt={item.nombre}
-                        fill
-                        className="object-cover"
-                        sizes="80px"
-                      />
+                      <Image src={item.imagen} alt={item.nombre} fill style={{ objectFit: 'cover' }} sizes="80px" />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <ShoppingBag className="w-8 h-8 text-gray-400" />
+                      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <ShoppingBag size={28} color="#ccc" />
                       </div>
                     )}
                   </div>
 
                   {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm text-gray-900 truncate">
-                      {item.nombre}
-                    </h3>
-                    {item.categoria && (
-                      <p className="text-xs text-gray-500">{item.categoria.nombre}</p>
-                    )}
-                    <p className="text-jmr-green font-bold mt-1">
-                      ${item.precio.toFixed(2)}
-                    </p>
-
-                    {/* Controles de cantidad */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.cantidad - 1)}
-                        className="p-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                        aria-label="Disminuir cantidad"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="w-8 text-center font-semibold text-sm">
-                        {item.cantidad}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingBlock: '0.25rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#1a1c1c', marginBottom: '0.2rem', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                          {item.nombre}
+                        </h3>
+                        {item.categoria && (
+                          <p style={{ fontSize: '0.7rem', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+                            {item.categoria.nombre}
+                          </p>
+                        )}
+                      </div>
+                      <span style={{ fontSize: '1rem', fontWeight: 800, color: '#6DBE45', whiteSpace: 'nowrap' }}>
+                        ${(item.precio * item.cantidad).toFixed(2)}
                       </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.75rem' }}>
+                      {/* Qty controls */}
+                      <div style={{
+                        display: 'flex', alignItems: 'center',
+                        background: '#f3f3f3', borderRadius: '9999px',
+                        padding: '0.25rem 0.75rem', gap: '0.75rem',
+                      }}>
+                        <button
+                          className="qty-btn"
+                          onClick={() => updateQuantity(item.id, item.cantidad - 1)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#5e5e5e', padding: '0.15rem', borderRadius: '50%' }}
+                          aria-label="Disminuir"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span style={{ fontWeight: 700, minWidth: '1rem', textAlign: 'center', fontSize: '0.875rem', color: '#1a1c1c' }}>
+                          {item.cantidad}
+                        </span>
+                        <button
+                          className="qty-btn"
+                          onClick={() => updateQuantity(item.id, item.cantidad + 1)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#5e5e5e', padding: '0.15rem', borderRadius: '50%' }}
+                          aria-label="Aumentar"
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+
+                      {/* Delete */}
                       <button
-                        onClick={() => updateQuantity(item.id, item.cantidad + 1)}
-                        className="p-1 bg-gray-100 hover:bg-gray-200 rounded transition-colors"
-                        aria-label="Aumentar cantidad"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                      <button
+                        className="cart-delete"
                         onClick={() => removeFromCart(item.id)}
-                        className="ml-auto p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                        aria-label="Eliminar del carrito"
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '0.3rem',
+                          color: '#aaa', background: 'none', border: 'none', cursor: 'pointer',
+                          fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                          padding: '0.3rem 0.5rem', borderRadius: '0.375rem',
+                        }}
+                        aria-label="Eliminar"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 size={14} />
+                        Eliminar
                       </button>
                     </div>
-                  </div>
-
-                  {/* Subtotal */}
-                  <div className="text-right">
-                    <p className="font-bold text-gray-900">
-                      ${(item.precio * item.cantidad).toFixed(2)}
-                    </p>
                   </div>
                 </div>
               ))}
@@ -157,52 +197,82 @@ export default function Cart() {
 
         {/* Footer */}
         {cart.length > 0 && (
-          <div className="border-t p-4 space-y-3 bg-gray-50">
-            {/* Total */}
-            <div className="flex justify-between items-center text-xl font-bold">
-              <span>Total:</span>
-              <span className="text-jmr-green">${getTotal().toFixed(2)}</span>
+          <div style={{ borderTop: '1px solid #e8e8e8', background: 'white', padding: '1.5rem' }}>
+            <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#5e5e5e' }}>
+                <span>Subtotal</span>
+                <span style={{ fontWeight: 500, color: '#1a1c1c' }}>${getTotal().toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#5e5e5e' }}>
+                <span>Envío</span>
+                <span style={{ fontWeight: 800, color: '#6DBE45', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gratis</span>
+              </div>
             </div>
 
-            {/* Botones */}
-            <button
-              onClick={enviarPorWhatsApp}
-              className="w-full bg-[#25D366] hover:bg-[#20BA5A] text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 transition-colors shadow-md hover:shadow-lg"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-              </svg>
-              Pedir por WhatsApp
-            </button>
+            <div style={{ height: '1px', background: '#e8e8e8', marginBottom: '1.25rem' }} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.25rem' }}>
+              <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1a1c1c' }}>Total</span>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '2rem', fontWeight: 900, color: '#6DBE45', letterSpacing: '-0.04em', lineHeight: 1 }}>
+                  ${getTotal().toFixed(2)}
+                </p>
+                <p style={{ fontSize: '0.65rem', color: '#aaa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.2rem' }}>IVA Incluido</p>
+              </div>
+            </div>
 
             <button
-              onClick={clearCart}
-              className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-2 rounded-lg font-semibold transition-colors text-sm"
+              className="whatsapp-btn"
+              onClick={enviarPorWhatsApp}
+              style={{
+                width: '100%', padding: '1.1rem',
+                background: 'linear-gradient(135deg, #286c00, #6DBE45)',
+                color: 'white', border: 'none', borderRadius: '0.5rem',
+                fontWeight: 700, fontSize: '1rem', cursor: 'pointer', marginBottom: '0.75rem',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                boxShadow: '0 4px 16px rgba(109,190,69,0.3)',
+                letterSpacing: '-0.01em',
+              }}
             >
-              Vaciar Carrito
+              Finalizar Compra
+              <ArrowRight size={18} />
             </button>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.75rem', opacity: 0.35, filter: 'grayscale(1)' }}>
+              {['💳', '📱', '🏦', '📲'].map((icon, i) => (
+                <span key={i} style={{ fontSize: '1.4rem' }}>{icon}</span>
+              ))}
+            </div>
+
+            <p style={{ fontSize: '0.7rem', color: '#aaa', textAlign: 'center', lineHeight: 1.5 }}>
+              Tus transacciones están cifradas bajo estándares SSL.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+              <button
+                onClick={() => setIsOpen(false)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.3rem',
+                  color: '#5e5e5e', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em',
+                }}
+              >
+                ← Seguir comprando
+              </button>
+              <button
+                className="clear-btn"
+                onClick={clearCart}
+                style={{
+                  color: '#aaa', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '0.8rem', fontWeight: 700, padding: '0.4rem 0.75rem', borderRadius: '0.375rem',
+                }}
+              >
+                Vaciar carrito
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      <style jsx>{`
-        @keyframes slide-in {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
-        }
-        
-        .animate-slide-in {
-          animation: slide-in 0.3s ease-out;
-        }
-      `}</style>
     </>
   );
 }
