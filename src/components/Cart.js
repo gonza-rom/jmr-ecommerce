@@ -2,12 +2,12 @@
 
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useCart } from '@/context/CartContext';
 import { showToast } from 'nextjs-toast-notify';
 
-const WHATSAPP_NUMBER = '543834927252';
-
 export default function Cart() {
+  const router = useRouter();
   const {
     cart,
     isOpen,
@@ -18,22 +18,13 @@ export default function Cart() {
     getTotal,
   } = useCart();
 
-  const enviarPorWhatsApp = () => {
+  const irAlCheckout = () => {
     if (cart.length === 0) {
       showToast.warning('⚠️ El carrito está vacío');
       return;
     }
-    let mensaje = '¡Hola! Me gustaría hacer el siguiente pedido:\n\n';
-    cart.forEach((item, index) => {
-      mensaje += `${index + 1}. *${item.nombre}*\n`;
-      mensaje += `   Cantidad: ${item.cantidad}\n`;
-      mensaje += `   Precio unitario: $${item.precio.toFixed(2)}\n`;
-      mensaje += `   Subtotal: $${(item.precio * item.cantidad).toFixed(2)}\n\n`;
-    });
-    mensaje += `*TOTAL: $${getTotal().toFixed(2)}*\n\n`;
-    mensaje += '¿Podrían confirmar la disponibilidad? ¡Gracias!';
-    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(mensaje)}`, '_blank');
-    showToast.success('📱 Abriendo WhatsApp...');
+    setIsOpen(false);
+    router.push('/checkout');
   };
 
   if (!isOpen) return null;
@@ -140,7 +131,7 @@ export default function Cart() {
                         )}
                       </div>
                       <span style={{ fontSize: '1rem', fontWeight: 800, color: '#6DBE45', whiteSpace: 'nowrap' }}>
-                        ${(item.precio * item.cantidad).toFixed(2)}
+                        ${(item.precio * item.cantidad).toLocaleString('es-AR')}
                       </span>
                     </div>
 
@@ -201,11 +192,15 @@ export default function Cart() {
             <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#5e5e5e' }}>
                 <span>Subtotal</span>
-                <span style={{ fontWeight: 500, color: '#1a1c1c' }}>${getTotal().toFixed(2)}</span>
+                <span style={{ fontWeight: 500, color: '#1a1c1c' }}>
+                  ${getTotal().toLocaleString('es-AR')}
+                </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#5e5e5e' }}>
                 <span>Envío</span>
-                <span style={{ fontWeight: 800, color: '#6DBE45', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Gratis</span>
+                <span style={{ fontWeight: 700, color: '#6DBE45', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Se calcula al finalizar
+                </span>
               </div>
             </div>
 
@@ -215,15 +210,17 @@ export default function Cart() {
               <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1a1c1c' }}>Total</span>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: '2rem', fontWeight: 900, color: '#6DBE45', letterSpacing: '-0.04em', lineHeight: 1 }}>
-                  ${getTotal().toFixed(2)}
+                  ${getTotal().toLocaleString('es-AR')}
                 </p>
-                <p style={{ fontSize: '0.65rem', color: '#aaa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.2rem' }}>IVA Incluido</p>
+                <p style={{ fontSize: '0.65rem', color: '#aaa', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: '0.2rem' }}>
+                  IVA Incluido
+                </p>
               </div>
             </div>
 
+            {/* Botón principal → checkout */}
             <button
-              className="whatsapp-btn"
-              onClick={enviarPorWhatsApp}
+              onClick={irAlCheckout}
               style={{
                 width: '100%', padding: '1.1rem',
                 background: 'linear-gradient(135deg, #286c00, #6DBE45)',
@@ -238,17 +235,11 @@ export default function Cart() {
               <ArrowRight size={18} />
             </button>
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem', marginBottom: '0.75rem', opacity: 0.35, filter: 'grayscale(1)' }}>
-              {['💳', '📱', '🏦', '📲'].map((icon, i) => (
-                <span key={i} style={{ fontSize: '1.4rem' }}>{icon}</span>
-              ))}
-            </div>
-
-            <p style={{ fontSize: '0.7rem', color: '#aaa', textAlign: 'center', lineHeight: 1.5 }}>
-              Tus transacciones están cifradas bajo estándares SSL.
+            <p style={{ fontSize: '0.7rem', color: '#aaa', textAlign: 'center', lineHeight: 1.5, marginBottom: '1rem' }}>
+              Pagá con Mercado Pago, transferencia o efectivo
             </p>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <button
                 onClick={() => setIsOpen(false)}
                 style={{
