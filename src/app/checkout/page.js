@@ -281,15 +281,15 @@ export default function CheckoutPage() {
     try {
       const payload = {
         items: cart.map(item => ({
-          productoId: item.id,
-          varianteId: item.varianteId ?? null,
-          nombre:     item.nombre,
-          precio:     item.precio,
-          cantidad:   item.cantidad,
-          subtotal:   item.precio * item.cantidad,
-          talle:      item.talle  ?? null,
-          color:      item.color  ?? null,
-          imagen:     item.imagen ?? null,
+        productoId:      item.id,
+        varianteId:      item.varianteId ?? null,
+        nombre:          item.nombre,
+        precioUnit:      item.precio,          // ← nombre correcto
+        cantidad:        item.cantidad,
+        subtotal:        item.precio * item.cantidad,
+        talle:           item.talle  ?? null,
+        color:           item.color  ?? null,
+        imagen:          item.imagen ?? null,
         })),
         subtotal, costoEnvio, total,
         metodoPago, tipoEnvio,

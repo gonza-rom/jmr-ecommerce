@@ -2,6 +2,7 @@
 import { NextResponse }          from 'next/server';
 import { prisma }                from '@/lib/prisma';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
+import { crearVentaEnDevhub }    from '@/lib/devhub';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
@@ -51,6 +52,42 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
   }
 }
 
+// ── Registrar venta en DevHub y bajar stock ───────────────────────────────────
+async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) {
+  try {
+    const result = await crearVentaEnDevhub({
+      items: items.map(item => ({
+        productoId: item.productoDevhubId,
+        varianteId: item.varianteDevhubId ?? null,
+        cantidad:   item.cantidad,
+        precioUnit: item.precioUnit,
+      })),
+      cliente: {
+        nombre: compradorNombre,
+        dni:    null,
+      },
+      metodoPago,
+      descuento:     pedido.descuento ?? 0,
+      observaciones: pedido.observaciones,
+      pedidoJmrId:   pedido.id,
+    });
+
+    // Guardar el ID de venta DevHub en el pedido
+    await prisma.pedido.update({
+      where: { id: pedido.id },
+      data:  { ventaDevhubId: result.ventaDevhubId },
+    });
+
+    console.log(`[DevHub] Venta creada: ${result.ventaDevhubId} para pedido ${pedido.id}`);
+    return result;
+
+  } catch (err) {
+    // No bloqueamos el pedido si DevHub falla — se puede sincronizar después
+    console.error('[DevHub] Error al crear venta:', err.message);
+    return null;
+  }
+}
+
 // ── POST /api/checkout ────────────────────────────────────────────────────────
 export async function POST(req) {
   try {
@@ -80,6 +117,16 @@ export async function POST(req) {
       return NextResponse.json({ ok: false, error: 'Método de pago requerido' }, { status: 400 });
     if (tipoEnvio === 'envio' && !direccion)
       return NextResponse.json({ ok: false, error: 'Dirección requerida para envío' }, { status: 400 });
+
+    // Validar precioUnit en todos los items
+    for (const item of items) {
+      if (item.precioUnit === undefined || item.precioUnit === null) {
+        return NextResponse.json(
+          { ok: false, error: `Precio faltante para: ${item.nombre}` },
+          { status: 400 }
+        );
+      }
+    }
 
     // ── Verificar stock en DevHub ─────────────────────────────────────────────
     for (const item of items) {
@@ -123,7 +170,6 @@ export async function POST(req) {
       clienteId = cliente.id;
     } catch (err) {
       console.error('[Cliente upsert]', err);
-      // No bloqueamos el pedido si falla el upsert
     }
 
     // ── Crear pedido + dirección en transacción ───────────────────────────────
@@ -167,39 +213,19 @@ export async function POST(req) {
               nombre:           item.nombre,
               cantidad:         item.cantidad,
               precioUnit:       item.precioUnit,
-              subtotal:         item.subtotal,
-              talle:            item.talle  ?? null,
-              color:            item.color  ?? null,
-              imagen:           item.imagen ?? null,
+              subtotal:         item.subtotal ?? item.precioUnit * item.cantidad,
+              talle:            item.talle    ?? null,
+              color:            item.color    ?? null,
+              imagen:           item.imagen   ?? null,
             })),
           },
         },
       });
     });
 
-    // ── Descontar stock en DevHub ─────────────────────────────────────────────
-    for (const item of items) {
-      try {
-        if (item.varianteDevhubId) {
-          await devhub.productoVariante.update({
-            where: { id: item.varianteDevhubId },
-            data:  { stock: { decrement: item.cantidad } },
-          });
-        } else if (item.productoDevhubId) {
-          await devhub.producto.update({
-            where: { id: item.productoDevhubId },
-            data:  { stock: { decrement: item.cantidad } },
-          });
-        }
-      } catch (err) {
-        console.error('[Stock] Error descontando:', item.nombre, err);
-      }
-    }
-
-    // ── Mercado Pago ──────────────────────────────────────────────────────────
-    let mpInitPoint = null;
+    // ── Mercado Pago: diferir stock hasta confirmación del webhook ────────────
     if (metodoPago === 'mercadopago') {
-      mpInitPoint = await crearPreferenciaMp(pedido, items, compradorEmail);
+      const mpInitPoint = await crearPreferenciaMp(pedido, items, compradorEmail);
       if (!mpInitPoint) {
         return NextResponse.json({
           ok:       true,
@@ -207,9 +233,22 @@ export async function POST(req) {
           warning:  'No se pudo crear el link de pago. Coordiná el pago por WhatsApp.',
         });
       }
+      // Para MP el stock se baja en el webhook cuando el pago es aprobado
+      return NextResponse.json({ ok: true, pedidoId: pedido.id, mpInitPoint });
     }
 
-    return NextResponse.json({ ok: true, pedidoId: pedido.id, mpInitPoint });
+    // ── Pago no-MP (efectivo / transferencia): registrar en DevHub ahora ──────
+    // Los items que tienen productoDevhubId se sincronizan; los de prueba sin ID se omiten
+    const itemsConDevhub = items.filter(i => i.productoDevhubId);
+
+    if (itemsConDevhub.length > 0) {
+      await sincronizarConDevhub(pedido, itemsConDevhub, compradorNombre.trim(), metodoPago);
+    } else {
+      // Sin productoDevhubId → bajar stock manualmente igual (productos sin ID en DevHub)
+      console.warn('[DevHub] Items sin productoDevhubId — stock no modificado en DevHub');
+    }
+
+    return NextResponse.json({ ok: true, pedidoId: pedido.id });
 
   } catch (error) {
     console.error('[POST /api/checkout]', error);
