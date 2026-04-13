@@ -8,74 +8,88 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model Cliente {
-  id          String      @id @default(cuid())
+model   id          String      @id @default(cuid())
   nombre      String
   email       String      @unique
   dni         String?
   telefono    String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  pedidos     Pedido[]
+  supabaseId  String?
   direcciones Direccion[]
+  pedidos     Pedido[]
+
+  @@index([supabaseId])
 }
 
 model Direccion {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   clienteId    String
   calle        String
-  numero       String?
-  piso         String?
-  departamento String?
   ciudad       String
   provincia    String?
   cp           String?
-  principal    Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  cliente      Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  principal    Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  departamento String?
+  numero       String?
+  piso         String?
+  updatedAt    DateTime? @default(now()) @db.Timestamp(6)
+  cliente      Cliente   @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   pedidos      Pedido[]
+
+  @@index([clienteId])
 }
 
 model Pedido {
   id                String       @id @default(cuid())
-  clienteId         String?      // opcional — compra como invitado
+  clienteId         String?
   direccionId       String?
   estado            String       @default("PENDIENTE")
   metodoPago        String?
-  mpPaymentId       String?      // ID de preferencia de Mercado Pago
-  mpStatus          String?      // approved | rejected | pending
-  tipoEnvio         String?      // retiro-rivadavia | retiro-valleviejo | envio
   subtotal          Float
-  costoEnvio        Float        @default(0)
   descuento         Float        @default(0)
   total             Float
-  compradorNombre   String?
-  compradorEmail    String?
-  compradorTelefono String?
   observaciones     String?
-  ventaDevhubId     String?      // Venta.id en DevHub POS (se llena después)
+  ventaDevhubId     String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
-
-  cliente   Cliente?    @relation(fields: [clienteId], references: [id])
-  direccion Direccion?  @relation(fields: [direccionId], references: [id])
-  items     PedidoItem[]
+  compradorEmail    String?
+  compradorNombre   String?
+  compradorTelefono String?
+  costoEnvio        Float        @default(0)
+  mpPaymentId       String?
+  mpStatus          String?
+  tipoEnvio         String?
+  pagadoAt          DateTime?    @db.Timestamp(6)
+  enviadoAt         DateTime?    @db.Timestamp(6)
+  entregadoAt       DateTime?    @db.Timestamp(6)
+  notasInternas     String?
+  cliente           Cliente?     @relation(fields: [clienteId], references: [id])
+  direccion         Direccion?   @relation(fields: [direccionId], references: [id])
+  items             PedidoItem[]
 
   @@index([estado])
   @@index([compradorEmail])
   @@index([mpPaymentId])
   @@index([createdAt])
+  @@index([clienteId])
+  @@index([ventaDevhubId])
 }
 
 model PedidoItem {
   id               String  @id @default(cuid())
   pedidoId         String
-  productoDevhubId String?  // Producto.id en DevHub
+  productoDevhubId String?
   varianteDevhubId String?
   nombre           String
   cantidad         Int
   precioUnit       Float
   subtotal         Float
+  color            String?
+  imagen           String?
+  talle            String?
+oat
   talle            String?
   color            String?
   imagen           String?

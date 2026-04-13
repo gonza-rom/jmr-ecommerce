@@ -3,6 +3,7 @@ import { NextResponse }          from 'next/server';
 import { prisma }                from '@/lib/prisma';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
 import { crearVentaEnDevhub }    from '@/lib/devhub';
+import { createClient }          from '@/lib/supabase/server';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
@@ -72,7 +73,6 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
       pedidoJmrId:   pedido.id,
     });
 
-    // Guardar el ID de venta DevHub en el pedido
     await prisma.pedido.update({
       where: { id: pedido.id },
       data:  { ventaDevhubId: result.ventaDevhubId },
@@ -82,7 +82,6 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
     return result;
 
   } catch (err) {
-    // No bloqueamos el pedido si DevHub falla — se puede sincronizar después
     console.error('[DevHub] Error al crear venta:', err.message);
     return null;
   }
@@ -106,7 +105,7 @@ export async function POST(req) {
       direccion,
     } = body;
 
-    // ── Validaciones ─────────────────────────────────────────────────────────
+    // ── Validaciones ──────────────────────────────────────────────────────────
     if (!items?.length)
       return NextResponse.json({ ok: false, error: 'El carrito está vacío' }, { status: 400 });
     if (!compradorNombre?.trim())
@@ -118,15 +117,19 @@ export async function POST(req) {
     if (tipoEnvio === 'envio' && !direccion)
       return NextResponse.json({ ok: false, error: 'Dirección requerida para envío' }, { status: 400 });
 
-    // Validar precioUnit en todos los items
     for (const item of items) {
-      if (item.precioUnit === undefined || item.precioUnit === null) {
-        return NextResponse.json(
-          { ok: false, error: `Precio faltante para: ${item.nombre}` },
-          { status: 400 }
-        );
-      }
+      if (item.precioUnit === undefined || item.precioUnit === null)
+        return NextResponse.json({ ok: false, error: `Precio faltante para: ${item.nombre}` }, { status: 400 });
     }
+
+    // ── Obtener supabaseId si hay sesión activa ───────────────────────────────
+    // Esto vincula el pedido al usuario logueado para que aparezca en /cuenta
+    let supabaseId = null;
+    try {
+      const supabase           = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) supabaseId = user.id;
+    } catch {}
 
     // ── Verificar stock en DevHub ─────────────────────────────────────────────
     for (const item of items) {
@@ -151,23 +154,48 @@ export async function POST(req) {
       }
     }
 
-    // ── Upsert cliente por email ──────────────────────────────────────────────
+    // ── Upsert cliente ────────────────────────────────────────────────────────
+    // Si hay sesión → buscamos primero por supabaseId para no duplicar
+    // Si no hay sesión → buscamos por email (compra como invitado)
     let clienteId = null;
     try {
-      const cliente = await prisma.cliente.upsert({
-        where:  { email: compradorEmail.trim().toLowerCase() },
-        update: {
-          nombre:   compradorNombre.trim(),
-          telefono: compradorTelefono?.trim() ?? undefined,
-        },
-        create: {
-          email:    compradorEmail.trim().toLowerCase(),
-          nombre:   compradorNombre.trim(),
-          telefono: compradorTelefono?.trim() ?? null,
-        },
-        select: { id: true },
-      });
-      clienteId = cliente.id;
+      const emailNorm = compradorEmail.trim().toLowerCase();
+
+      if (supabaseId) {
+        // Usuario logueado: upsert por supabaseId
+        const cliente = await prisma.cliente.upsert({
+          where:  { supabaseId },
+          update: {
+            nombre:   compradorNombre.trim(),
+            telefono: compradorTelefono?.trim() ?? undefined,
+            email:    emailNorm,
+          },
+          create: {
+            supabaseId,
+            email:    emailNorm,
+            nombre:   compradorNombre.trim(),
+            telefono: compradorTelefono?.trim() ?? null,
+          },
+          select: { id: true },
+        });
+        clienteId = cliente.id;
+      } else {
+        // Invitado: upsert por email
+        const cliente = await prisma.cliente.upsert({
+          where:  { email: emailNorm },
+          update: {
+            nombre:   compradorNombre.trim(),
+            telefono: compradorTelefono?.trim() ?? undefined,
+          },
+          create: {
+            email:    emailNorm,
+            nombre:   compradorNombre.trim(),
+            telefono: compradorTelefono?.trim() ?? null,
+          },
+          select: { id: true },
+        });
+        clienteId = cliente.id;
+      }
     } catch (err) {
       console.error('[Cliente upsert]', err);
     }
@@ -223,7 +251,7 @@ export async function POST(req) {
       });
     });
 
-    // ── Mercado Pago: diferir stock hasta confirmación del webhook ────────────
+    // ── Mercado Pago ──────────────────────────────────────────────────────────
     if (metodoPago === 'mercadopago') {
       const mpInitPoint = await crearPreferenciaMp(pedido, items, compradorEmail);
       if (!mpInitPoint) {
@@ -233,19 +261,13 @@ export async function POST(req) {
           warning:  'No se pudo crear el link de pago. Coordiná el pago por WhatsApp.',
         });
       }
-      // Para MP el stock se baja en el webhook cuando el pago es aprobado
       return NextResponse.json({ ok: true, pedidoId: pedido.id, mpInitPoint });
     }
 
-    // ── Pago no-MP (efectivo / transferencia): registrar en DevHub ahora ──────
-    // Los items que tienen productoDevhubId se sincronizan; los de prueba sin ID se omiten
+    // ── Efectivo / Transferencia → sincronizar DevHub ahora ──────────────────
     const itemsConDevhub = items.filter(i => i.productoDevhubId);
-
     if (itemsConDevhub.length > 0) {
       await sincronizarConDevhub(pedido, itemsConDevhub, compradorNombre.trim(), metodoPago);
-    } else {
-      // Sin productoDevhubId → bajar stock manualmente igual (productos sin ID en DevHub)
-      console.warn('[DevHub] Items sin productoDevhubId — stock no modificado en DevHub');
     }
 
     return NextResponse.json({ ok: true, pedidoId: pedido.id });
