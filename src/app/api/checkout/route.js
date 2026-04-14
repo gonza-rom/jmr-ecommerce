@@ -1,118 +1,69 @@
 // src/app/api/checkout/route.js
-// CAMBIO: Agregada validación de precios server-side para prevenir manipulación.
-// Los precios del carrito (client) se verifican contra DevHub antes de crear el pedido.
+// CAMBIOS respecto a la versión anterior:
+//   1. Validación de precios server-side (ya implementada)
+//   2. + enviarConfirmacionPedido() al cliente
+//   3. + notificarAdminPedidoNuevo() al admin
+// Los emails se disparan en background (no bloquean la respuesta al cliente).
 
-import { NextResponse }          from 'next/server';
-import { prisma }                from '@/lib/prisma';
-import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
-import { crearVentaEnDevhub }    from '@/lib/devhub';
-import { createServerClient }    from '@supabase/ssr';
-import { cookies }               from 'next/headers';
+import { NextResponse }                    from 'next/server';
+import { prisma }                          from '@/lib/prisma';
+import { devhub, JMR_TENANT_ID }          from '@/lib/prisma-devhub';
+import { crearVentaEnDevhub }             from '@/lib/devhub';
+import { createServerClient }             from '@supabase/ssr';
+import { cookies }                        from 'next/headers';
+import { enviarConfirmacionPedido }       from '@/emails/confirmacion-pedido';
+import { notificarAdminPedidoNuevo }      from '@/emails/notificacion-admin';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-
-// Tolerancia de precio: 1% para cubrir diferencias de redondeo
+const APP_URL          = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 const TOLERANCIA_PRECIO = 0.01;
 
-// ── Obtener usuario de Supabase ──────────────────────────────────────────────
+// ── Supabase user ─────────────────────────────────────────────────────────────
 async function getSupabaseUser() {
   try {
     const cookieStore = await cookies();
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: () => {},
-        },
-      }
+      { cookies: { getAll: () => cookieStore.getAll(), setAll: () => {} } }
     );
     const { data: { user } } = await supabase.auth.getUser();
     return user ?? null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
-// ── NUEVO: Validar precios contra DevHub ─────────────────────────────────────
-/**
- * Verifica que los precios enviados por el cliente coincidan con los
- * precios reales en DevHub. Previene manipulación del carrito.
- *
- * @returns {{ ok: boolean, error?: string, itemsValidados?: object[] }}
- */
+// ── Validar precios contra DevHub ─────────────────────────────────────────────
 async function validarPrecios(items) {
   const errores = [];
   const itemsValidados = [];
 
   for (const item of items) {
     let precioReal = null;
-
     try {
       if (item.varianteDevhubId) {
-        // Producto con variante (talle/color)
         const variante = await devhub.productoVariante.findFirst({
-          where: {
-            id:       item.varianteDevhubId,
-            tenantId: JMR_TENANT_ID,
-            activo:   true,
-          },
-          select: {
-            precio:   true,
-            producto: { select: { precio: true } },
-          },
+          where:  { id: item.varianteDevhubId, tenantId: JMR_TENANT_ID, activo: true },
+          select: { precio: true, producto: { select: { precio: true } } },
         });
-
-        if (!variante) {
-          errores.push(`Variante no encontrada para: ${item.nombre}`);
-          continue;
-        }
-
-        // Si la variante tiene precio propio, usarlo; si no, usar el del producto
+        if (!variante) { errores.push(`Variante no encontrada: ${item.nombre}`); continue; }
         precioReal = variante.precio ?? variante.producto.precio;
-
       } else if (item.productoDevhubId) {
-        // Producto sin variante
         const producto = await devhub.producto.findFirst({
-          where: {
-            id:       item.productoDevhubId,
-            tenantId: JMR_TENANT_ID,
-            activo:   true,
-          },
+          where:  { id: item.productoDevhubId, tenantId: JMR_TENANT_ID, activo: true },
           select: { precio: true },
         });
-
-        if (!producto) {
-          errores.push(`Producto no encontrado: ${item.nombre}`);
-          continue;
-        }
-
+        if (!producto) { errores.push(`Producto no encontrado: ${item.nombre}`); continue; }
         precioReal = producto.precio;
       } else {
-        // Item sin ID de DevHub (no puede validarse — rechazar)
-        errores.push(`Item sin ID de DevHub: ${item.nombre}`);
-        continue;
+        errores.push(`Item sin ID de DevHub: ${item.nombre}`); continue;
       }
 
-      // Comparar precio enviado vs precio real
       const diferencia = Math.abs(item.precioUnit - precioReal) / precioReal;
-
       if (diferencia > TOLERANCIA_PRECIO) {
-        errores.push(
-          `Precio incorrecto para "${item.nombre}". ` +
-          `Recibido: $${item.precioUnit} / Real: $${precioReal}`
-        );
+        errores.push(`Precio incorrecto para "${item.nombre}". Recibido: $${item.precioUnit} / Real: $${precioReal}`);
         continue;
       }
 
-      // Usar el precio real (no el del cliente) en el pedido
-      itemsValidados.push({
-        ...item,
-        precioUnit: precioReal,
-        subtotal:   precioReal * item.cantidad,
-      });
-
+      itemsValidados.push({ ...item, precioUnit: precioReal, subtotal: precioReal * item.cantidad });
     } catch (err) {
       errores.push(`Error validando "${item.nombre}": ${err.message}`);
     }
@@ -122,38 +73,28 @@ async function validarPrecios(items) {
     console.warn('[Checkout] Validación de precios fallida:', errores);
     return { ok: false, error: errores.join(' | ') };
   }
-
   return { ok: true, itemsValidados };
 }
 
 // ── Upsert cliente ────────────────────────────────────────────────────────────
 async function upsertCliente({ supabaseId, email, nombre, telefono }) {
   const emailNorm = email.trim().toLowerCase();
-
   if (supabaseId) {
     const existente = await prisma.cliente.findFirst({
       where: { OR: [{ supabaseId }, { email: emailNorm }] },
     });
-
     if (existente) {
       return prisma.cliente.update({
         where: { id: existente.id },
-        data: {
-          nombre:    nombre.trim(),
-          telefono:  telefono?.trim() ?? existente.telefono,
-          supabaseId,
-          email:     emailNorm,
-        },
+        data:  { nombre: nombre.trim(), telefono: telefono?.trim() ?? existente.telefono, supabaseId, email: emailNorm },
         select: { id: true },
       });
     }
-
     return prisma.cliente.create({
-      data: { email: emailNorm, nombre: nombre.trim(), telefono: telefono?.trim() ?? null, supabaseId },
+      data:   { email: emailNorm, nombre: nombre.trim(), telefono: telefono?.trim() ?? null, supabaseId },
       select: { id: true },
     });
   }
-
   return prisma.cliente.upsert({
     where:  { email: emailNorm },
     update: { nombre: nombre.trim(), telefono: telefono?.trim() ?? undefined },
@@ -166,14 +107,13 @@ async function upsertCliente({ supabaseId, email, nombre, telefono }) {
 async function crearPreferenciaMp(pedido, items, compradorEmail) {
   const accessToken = process.env.MP_ACCESS_TOKEN;
   if (!accessToken) return null;
-
   try {
     const body = {
       items: items.map(item => ({
         id:          item.productoDevhubId ?? 'producto',
         title:       item.nombre,
         quantity:    item.cantidad,
-        unit_price:  item.precioUnit,  // precio ya validado
+        unit_price:  item.precioUnit,
         currency_id: 'ARS',
       })),
       payer: { email: compradorEmail },
@@ -186,16 +126,13 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
       external_reference:   pedido.id,
       statement_descriptor: 'MARROQUINERIA JMR',
     };
-
     const res  = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body:    JSON.stringify(body),
     });
-
     const data = await res.json();
     if (!res.ok) { console.error('[MP]', data); return null; }
-
     await prisma.pedido.update({ where: { id: pedido.id }, data: { mpPaymentId: data.id } });
     return data.init_point;
   } catch (err) {
@@ -220,7 +157,6 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
       observaciones: pedido.observaciones,
       pedidoJmrId:   pedido.id,
     });
-
     await prisma.pedido.update({ where: { id: pedido.id }, data: { ventaDevhubId: result.ventaDevhubId } });
     return result;
   } catch (err) {
@@ -229,23 +165,39 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
   }
 }
 
+// ── Disparar emails en background ─────────────────────────────────────────────
+// Los emails no bloquean la respuesta al cliente.
+// Si fallan, se loguean pero el pedido ya fue creado correctamente.
+async function dispararEmails(pedido) {
+  try {
+    // Cargar pedido completo con items y dirección para los emails
+    const pedidoCompleto = await prisma.pedido.findUnique({
+      where:   { id: pedido.id },
+      include: { items: true, direccion: true },
+    });
+
+    if (!pedidoCompleto) return;
+
+    // Enviar en paralelo — si uno falla, el otro igual se envía
+    await Promise.allSettled([
+      enviarConfirmacionPedido(pedidoCompleto),
+      notificarAdminPedidoNuevo(pedidoCompleto),
+    ]);
+  } catch (err) {
+    console.error('[Emails] Error al disparar emails post-checkout:', err.message);
+  }
+}
+
 // ── POST /api/checkout ────────────────────────────────────────────────────────
 export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      items,
-      costoEnvio = 0,
-      metodoPago,
-      tipoEnvio,
-      compradorNombre,
-      compradorEmail,
-      compradorTelefono,
-      notas,
-      direccion,
+      items, costoEnvio = 0, metodoPago, tipoEnvio,
+      compradorNombre, compradorEmail, compradorTelefono, notas, direccion,
     } = body;
 
-    // ── Validaciones básicas ──────────────────────────────────────────────────
+    // Validaciones básicas
     if (!items?.length)
       return NextResponse.json({ ok: false, error: 'El carrito está vacío' }, { status: 400 });
     if (!compradorNombre?.trim())
@@ -257,63 +209,48 @@ export async function POST(req) {
     if (tipoEnvio === 'envio' && !direccion)
       return NextResponse.json({ ok: false, error: 'Dirección requerida para envío' }, { status: 400 });
 
-    // ── NUEVO: Validar precios server-side ────────────────────────────────────
+    // Validar precios
     const validacion = await validarPrecios(items);
-    if (!validacion.ok) {
-      return NextResponse.json(
-        { ok: false, error: `Precios incorrectos: ${validacion.error}` },
-        { status: 422 }
-      );
-    }
-    // A partir de acá usar itemsValidados (con precios reales de DevHub)
-    const itemsValidados = validacion.itemsValidados;
+    if (!validacion.ok)
+      return NextResponse.json({ ok: false, error: `Precios incorrectos: ${validacion.error}` }, { status: 422 });
 
-    // Recalcular totales con precios reales
+    const itemsValidados = validacion.itemsValidados;
     const subtotal = itemsValidados.reduce((a, i) => a + i.subtotal, 0);
     const total    = subtotal + costoEnvio;
 
-    // ── Verificar stock en DevHub ─────────────────────────────────────────────
+    // Verificar stock
     for (const item of itemsValidados) {
       if (item.varianteDevhubId) {
         const v = await devhub.productoVariante.findFirst({
           where: { id: item.varianteDevhubId, tenantId: JMR_TENANT_ID, activo: true },
         });
         if (!v || v.stock < item.cantidad)
-          return NextResponse.json(
-            { ok: false, error: `Sin stock suficiente para: ${item.nombre}` },
-            { status: 409 }
-          );
+          return NextResponse.json({ ok: false, error: `Sin stock: ${item.nombre}` }, { status: 409 });
       } else if (item.productoDevhubId) {
         const p = await devhub.producto.findFirst({
           where: { id: item.productoDevhubId, tenantId: JMR_TENANT_ID, activo: true },
         });
         if (!p || p.stock < item.cantidad)
-          return NextResponse.json(
-            { ok: false, error: `Sin stock suficiente para: ${item.nombre}` },
-            { status: 409 }
-          );
+          return NextResponse.json({ ok: false, error: `Sin stock: ${item.nombre}` }, { status: 409 });
       }
     }
 
-    // ── Obtener usuario Supabase ──────────────────────────────────────────────
+    // Upsert cliente
     const supabaseUser = await getSupabaseUser();
-    const supabaseId   = supabaseUser?.id ?? null;
-
-    // ── Upsert cliente ────────────────────────────────────────────────────────
     let clienteId = null;
     try {
       const cliente = await upsertCliente({
-        supabaseId, email: compradorEmail, nombre: compradorNombre, telefono: compradorTelefono,
+        supabaseId: supabaseUser?.id ?? null,
+        email:      compradorEmail,
+        nombre:     compradorNombre,
+        telefono:   compradorTelefono,
       });
       clienteId = cliente.id;
-    } catch (err) {
-      console.error('[Cliente upsert]', err);
-    }
+    } catch (err) { console.error('[Cliente upsert]', err); }
 
-    // ── Crear pedido + dirección ──────────────────────────────────────────────
+    // Crear pedido
     const pedido = await prisma.$transaction(async (tx) => {
       let direccionId = null;
-
       if (tipoEnvio === 'envio' && direccion && clienteId) {
         const dir = await tx.direccion.create({
           data: {
@@ -329,7 +266,6 @@ export async function POST(req) {
         });
         direccionId = dir.id;
       }
-
       return tx.pedido.create({
         data: {
           clienteId,
@@ -350,35 +286,39 @@ export async function POST(req) {
               varianteDevhubId: item.varianteDevhubId ?? null,
               nombre:           item.nombre,
               cantidad:         item.cantidad,
-              precioUnit:       item.precioUnit,   // precio validado y real
+              precioUnit:       item.precioUnit,
               subtotal:         item.subtotal,
-              talle:            item.talle    ?? null,
-              color:            item.color    ?? null,
-              imagen:           item.imagen   ?? null,
+              talle:            item.talle  ?? null,
+              color:            item.color  ?? null,
+              imagen:           item.imagen ?? null,
             })),
           },
         },
       });
     });
 
-    // ── Mercado Pago ──────────────────────────────────────────────────────────
+    // Mercado Pago
     if (metodoPago === 'mercadopago') {
       const mpInitPoint = await crearPreferenciaMp(pedido, itemsValidados, compradorEmail);
+      // Emails en background (no esperamos a MP para confirmar)
+      dispararEmails(pedido).catch(console.error);
       if (!mpInitPoint) {
         return NextResponse.json({
-          ok:       true,
-          pedidoId: pedido.id,
-          warning:  'No se pudo crear el link de pago. Coordiná el pago por WhatsApp.',
+          ok: true, pedidoId: pedido.id,
+          warning: 'No se pudo crear el link de pago. Coordiná por WhatsApp.',
         });
       }
       return NextResponse.json({ ok: true, pedidoId: pedido.id, mpInitPoint });
     }
 
-    // ── Efectivo / Transferencia: sincronizar DevHub ──────────────────────────
+    // Efectivo / Transferencia — sincronizar DevHub y disparar emails
     const itemsConDevhub = itemsValidados.filter(i => i.productoDevhubId);
     if (itemsConDevhub.length > 0) {
       await sincronizarConDevhub(pedido, itemsConDevhub, compradorNombre.trim(), metodoPago);
     }
+
+    // Emails en background
+    dispararEmails(pedido).catch(console.error);
 
     return NextResponse.json({ ok: true, pedidoId: pedido.id });
 
