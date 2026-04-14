@@ -7,18 +7,18 @@ import Link from 'next/link';
 import {
   ArrowLeft, ShoppingBag, Truck, CheckCircle,
   Loader2, AlertCircle, Store,
-  CreditCard, Banknote, Building2, Tag, X,
+  CreditCard, Banknote, Building2, Tag, X, User,
 } from 'lucide-react';
 import { useCart } from '@/context/CartContext';
+import { createBrowserClient } from '@supabase/ssr';
 
-// ── Constantes JMR ──────────────────────────────────────────────────────────
 const WA_NUMBER = '543834927252';
 
 const TRANSFERENCIA = {
   titular: 'Maria Lourdes Quispe',
   banco:   'Banco Nación / Mercado Pago',
-  cbu:     '', // completar con CBU real
-  alias:   '', // completar con alias real
+  cbu:     '',
+  alias:   '',
 };
 
 const PROVINCIAS_AR = [
@@ -29,56 +29,38 @@ const PROVINCIAS_AR = [
   'Santa Fe', 'Santiago del Estero', 'Tierra del Fuego', 'Tucumán',
 ];
 
-// Envío básico por zona — ajustar precios reales luego
 function calcularEnvio(provincia, subtotal) {
   const LOCAL     = ['Catamarca'];
   const NOA       = ['Tucumán', 'Jujuy', 'Salta', 'La Rioja', 'Santiago del Estero'];
   const CUYO      = ['Mendoza', 'San Juan', 'San Luis'];
   const LITORAL   = ['Corrientes', 'Misiones', 'Formosa', 'Chaco', 'Entre Ríos'];
   const PATAGONIA = ['Neuquén', 'Río Negro', 'Chubut', 'Santa Cruz', 'Tierra del Fuego'];
-
   const GRATIS_DESDE = 150000;
 
-  let precio = 0;
-  let zona   = '';
-  let dias   = [3, 7];
-
-  if (LOCAL.includes(provincia))     { precio = 2500;  zona = 'Catamarca';  dias = [1, 2]; }
-  else if (NOA.includes(provincia))  { precio = 4500;  zona = 'NOA';        dias = [2, 4]; }
-  else if (CUYO.includes(provincia)) { precio = 5500;  zona = 'Cuyo';       dias = [3, 5]; }
-  else if (LITORAL.includes(provincia)) { precio = 5000; zona = 'Litoral';  dias = [3, 5]; }
-  else if (PATAGONIA.includes(provincia)) { precio = 7500; zona = 'Patagonia'; dias = [5, 8]; }
-  else { precio = 5000; zona = provincia; dias = [3, 7]; } // default
+  let precio = 0, zona = '', dias = [3, 7];
+  if (LOCAL.includes(provincia))        { precio = 2500; zona = 'Catamarca';  dias = [1, 2]; }
+  else if (NOA.includes(provincia))     { precio = 4500; zona = 'NOA';        dias = [2, 4]; }
+  else if (CUYO.includes(provincia))    { precio = 5500; zona = 'Cuyo';       dias = [3, 5]; }
+  else if (LITORAL.includes(provincia)) { precio = 5000; zona = 'Litoral';    dias = [3, 5]; }
+  else if (PATAGONIA.includes(provincia)){ precio = 7500; zona = 'Patagonia'; dias = [5, 8]; }
+  else                                  { precio = 5000; zona = provincia;    dias = [3, 7]; }
 
   const gratis = subtotal >= GRATIS_DESDE;
-
-  return {
-    disponible: true,
-    gratis,
-    precio:  gratis ? 0 : precio,
-    zona:    { nombre: zona },
-    diasMin: dias[0],
-    diasMax: dias[1],
-  };
+  return { disponible: true, gratis, precio: gratis ? 0 : precio, zona: { nombre: zona }, diasMin: dias[0], diasMax: dias[1] };
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-const fmt = (n) => new Intl.NumberFormat('es-AR', {
-  style: 'currency', currency: 'ARS', minimumFractionDigits: 0,
-}).format(n ?? 0);
+const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n ?? 0);
 
-// ── Barra de pasos ──────────────────────────────────────────────────────────
-const GREEN = '#6DBE45';
+const GREEN      = '#6DBE45';
 const GREEN_DARK = '#286c00';
 
+// ── Barra de pasos ────────────────────────────────────────────────────────────
 function StepBar({ paso }) {
   const pasos = ['Contacto', 'Entrega', 'Pago'];
   return (
     <div className="flex items-center gap-0 mb-8">
       {pasos.map((label, i) => {
-        const num    = i + 1;
-        const activo = paso === num;
-        const hecho  = paso > num;
+        const num = i + 1, activo = paso === num, hecho = paso > num;
         return (
           <div key={label} className="flex items-center flex-1 last:flex-none">
             <div className="flex items-center gap-2">
@@ -87,25 +69,18 @@ function StepBar({ paso }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontSize: 12, fontWeight: 700,
                 border: `2px solid ${hecho || activo ? GREEN : '#d1d5db'}`,
-                background: hecho ? GREEN : activo ? 'white' : 'white',
+                background: hecho ? GREEN : 'white',
                 color: hecho ? 'white' : activo ? GREEN_DARK : '#9ca3af',
                 transition: 'all 0.2s',
               }}>
                 {hecho ? <CheckCircle size={14} /> : num}
               </div>
-              <span style={{
-                fontSize: 12, fontWeight: 600,
-                color: activo || hecho ? '#1a1c1c' : '#9ca3af',
-                display: 'none',
-              }} className="hidden sm:block">
+              <span style={{ fontSize: 12, fontWeight: 600, color: activo || hecho ? '#1a1c1c' : '#9ca3af', display: 'none' }} className="hidden sm:block">
                 {label}
               </span>
             </div>
             {i < pasos.length - 1 && (
-              <div style={{
-                flex: 1, height: 1, margin: '0 12px',
-                background: paso > num ? GREEN : '#e5e7eb',
-              }} />
+              <div style={{ flex: 1, height: 1, margin: '0 12px', background: paso > num ? GREEN : '#e5e7eb' }} />
             )}
           </div>
         );
@@ -114,14 +89,13 @@ function StepBar({ paso }) {
   );
 }
 
-// ── Resumen lateral ─────────────────────────────────────────────────────────
-function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvio, metodoPago }) {
+// ── Resumen lateral ───────────────────────────────────────────────────────────
+function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvio }) {
   const [mostrarCupon, setMostrarCupon] = useState(false);
   const [cuponInput,   setCuponInput]   = useState('');
 
   return (
     <div style={{ background: '#f9f9f9', border: '1px solid #e5e7eb', borderRadius: 16, overflow: 'hidden' }}>
-      {/* Items */}
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 256, overflowY: 'auto' }}>
         {cart.map(item => (
           <div key={item.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
@@ -130,13 +104,9 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
                 ? <img src={item.imagen} alt={item.nombre} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid #e5e7eb' }} />
                 : <div style={{ width: 48, height: 48, borderRadius: 8, background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ShoppingBag size={14} color="#9ca3af" /></div>
               }
-              <span style={{
-                position: 'absolute', top: -6, right: -6,
-                width: 20, height: 20, borderRadius: '50%',
-                background: '#6b7280', color: 'white',
-                fontSize: 10, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>{item.cantidad}</span>
+              <span style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', background: '#6b7280', color: 'white', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {item.cantidad}
+              </span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 13, fontWeight: 500, color: '#111', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nombre}</p>
@@ -146,26 +116,21 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
                 </p>
               )}
             </div>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#111', flexShrink: 0, margin: 0 }}>
-              {fmt(item.precio * item.cantidad)}
-            </p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#111', flexShrink: 0, margin: 0 }}>{fmt(item.precio * item.cantidad)}</p>
           </div>
         ))}
       </div>
 
       <div style={{ borderTop: '1px solid #e5e7eb' }} />
 
-      {/* Cupón */}
       <div style={{ padding: '12px 20px' }}>
         {!mostrarCupon ? (
-          <button onClick={() => setMostrarCupon(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          <button onClick={() => setMostrarCupon(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
             <Tag size={14} /> Agregar cupón de descuento
           </button>
         ) : (
           <div style={{ display: 'flex', gap: 8 }}>
-            <input value={cuponInput} onChange={e => setCuponInput(e.target.value)}
-              placeholder="Código de cupón" autoFocus
+            <input value={cuponInput} onChange={e => setCuponInput(e.target.value)} placeholder="Código de cupón" autoFocus
               style={{ flex: 1, padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none' }} />
             <button style={{ padding: '8px 12px', background: GREEN, color: 'white', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Aplicar</button>
             <button onClick={() => setMostrarCupon(false)} style={{ padding: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={14} /></button>
@@ -175,7 +140,6 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
 
       <div style={{ borderTop: '1px solid #e5e7eb' }} />
 
-      {/* Totales */}
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
           <span>Subtotal</span><span>{fmt(subtotal)}</span>
@@ -183,9 +147,9 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
           <span>Envío</span>
           <span style={{ color: costoEnvio === 0 && tipoEnvio ? GREEN_DARK : '#6b7280', fontWeight: costoEnvio === 0 && tipoEnvio ? 600 : 400 }}>
-            {!tipoEnvio         ? 'Calculando...'  :
-             tipoEnvio === 'retiro' ? 'Retiro gratis' :
-             infoEnvio?.gratis  ? '¡Gratis!'       :
+            {!tipoEnvio ? 'Calculando...' :
+             tipoEnvio.startsWith('retiro') ? 'Retiro gratis' :
+             infoEnvio?.gratis ? '¡Gratis!' :
              infoEnvio?.disponible ? fmt(infoEnvio.precio) : 'A calcular'}
           </span>
         </div>
@@ -198,7 +162,7 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
   );
 }
 
-// ── Checkout principal ──────────────────────────────────────────────────────
+// ── Checkout principal ────────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, clearCart } = useCart();
@@ -212,6 +176,7 @@ export default function CheckoutPage() {
   const [metodoPago, setMetodoPago] = useState('');
   const [errores,    setErrores]    = useState({});
   const [copiado,    setCopiado]    = useState('');
+  const [usuarioLogueado, setUsuarioLogueado] = useState(null);
 
   const [form, setForm] = useState({
     nombre: '', email: '', telefono: '',
@@ -219,6 +184,26 @@ export default function CheckoutPage() {
     ciudad: '', provincia: '', codigoPostal: '',
     notas: '',
   });
+
+  // ── Pre-completar datos del usuario logueado ──────────────────────────────
+  useEffect(() => {
+    try {
+      const supabase = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      );
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return;
+        setUsuarioLogueado(user);
+        // Pre-completar email y nombre si el form está vacío
+        setForm(prev => ({
+          ...prev,
+          email:  prev.email  || user.email  || '',
+          nombre: prev.nombre || user.user_metadata?.full_name || user.user_metadata?.nombre || '',
+        }));
+      });
+    } catch { /* sin auth */ }
+  }, []);
 
   useEffect(() => {
     if (cart.length === 0 && !pedidoConfirmado.current) router.replace('/productos');
@@ -233,7 +218,7 @@ export default function CheckoutPage() {
   }, [form.provincia, tipoEnvio]);
 
   const subtotal   = useMemo(() => cart.reduce((acc, item) => acc + item.precio * item.cantidad, 0), [cart]);
-  const costoEnvio = tipoEnvio === 'retiro' ? 0 : (infoEnvio?.disponible ? infoEnvio.precio : 0);
+  const costoEnvio = tipoEnvio.startsWith('retiro') ? 0 : (infoEnvio?.disponible ? infoEnvio.precio : 0);
   const total      = subtotal + costoEnvio;
 
   function copiar(campo) {
@@ -281,15 +266,15 @@ export default function CheckoutPage() {
     try {
       const payload = {
         items: cart.map(item => ({
-        productoId:      item.id,
-        varianteId:      item.varianteId ?? null,
-        nombre:          item.nombre,
-        precioUnit:      item.precio,          // ← nombre correcto
-        cantidad:        item.cantidad,
-        subtotal:        item.precio * item.cantidad,
-        talle:           item.talle  ?? null,
-        color:           item.color  ?? null,
-        imagen:          item.imagen ?? null,
+          productoDevhubId: item.id,
+          varianteDevhubId: item.varianteId ?? null,
+          nombre:           item.nombre,
+          precioUnit:       item.precio,
+          cantidad:         item.cantidad,
+          subtotal:         item.precio * item.cantidad,
+          talle:            item.talle  ?? null,
+          color:            item.color  ?? null,
+          imagen:           item.imagen ?? null,
         })),
         subtotal, costoEnvio, total,
         metodoPago, tipoEnvio,
@@ -325,7 +310,9 @@ export default function CheckoutPage() {
       }
 
       clearCart();
-      router.push(`/checkout/exito?pedido=${data.pedidoId}&metodo=${metodoPago}`);
+      // Pasar email a la página de éxito para el banner de registro
+      const emailParam = usuarioLogueado ? '' : `&email=${encodeURIComponent(form.email.trim())}`;
+      router.push(`/checkout/exito?pedido=${data.pedidoId}&metodo=${metodoPago}${emailParam}`);
 
     } catch { setError('Error de conexión. Intentá de nuevo.'); }
     finally  { setLoading(false); }
@@ -344,13 +331,8 @@ export default function CheckoutPage() {
   const metodosPago = [
     { id: 'mercadopago',   icon: CreditCard, label: 'Mercado Pago',           desc: 'Tarjeta, débito, efectivo en puntos de pago' },
     { id: 'transferencia', icon: Building2,  label: 'Transferencia bancaria', desc: 'Transferí y envianos el comprobante por WhatsApp' },
-    { id: 'efectivo',      icon: Banknote,   label: 'Efectivo',               desc: tipoEnvio === 'retiro' ? 'Al retirar en el local' : 'Al recibir el pedido' },
+    { id: 'efectivo',      icon: Banknote,   label: 'Efectivo',               desc: tipoEnvio.startsWith('retiro') ? 'Al retirar en el local' : 'Al recibir el pedido' },
   ];
-
-  function labelBoton() {
-    if (metodoPago === 'mercadopago') return `Pagar con Mercado Pago · ${fmt(total)}`;
-    return `Confirmar pedido · ${fmt(total)}`;
-  }
 
   const btnPrimario = {
     width: '100%', padding: '14px',
@@ -373,9 +355,16 @@ export default function CheckoutPage() {
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#9ca3af', marginLeft: 6 }}>Marroquinería</span>
           </Link>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#9ca3af' }}>Checkout</span>
-          <Link href="/productos" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>
-            <ArrowLeft size={13} /> Volver
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {usuarioLogueado && (
+              <span style={{ fontSize: 12, color: '#6DBE45', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <User size={13} /> {usuarioLogueado.email?.split('@')[0]}
+              </span>
+            )}
+            <Link href="/productos" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#6b7280', textDecoration: 'none' }}>
+              <ArrowLeft size={13} /> Volver
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -383,28 +372,41 @@ export default function CheckoutPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 32 }} className="lg:grid-cols-checkout">
           <style>{`@media(min-width:1024px){.lg\\:grid-cols-checkout{grid-template-columns:1fr 380px}}`}</style>
 
-          {/* ── Columna izquierda ── */}
+          {/* Columna izquierda */}
           <div>
             <StepBar paso={paso} />
 
-            {/* ══ PASO 1: Contacto ══ */}
+            {/* PASO 1: Contacto */}
             {paso === 1 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111', margin: 0 }}>Datos de contacto</h2>
 
+                {/* Badge usuario logueado */}
+                {usuarioLogueado && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <User size={14} color="#6DBE45" />
+                    <p style={{ fontSize: 13, color: '#15803d', fontWeight: 600, margin: 0 }}>
+                      Comprando como <strong>{usuarioLogueado.email}</strong>
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>E-mail *</label>
-                  <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                    placeholder="tu@email.com" style={inp(errores.email)} />
+                  <input
+                    type="email" value={form.email}
+                    onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                    placeholder="tu@email.com"
+                    readOnly={!!usuarioLogueado}
+                    style={{ ...inp(errores.email), background: usuarioLogueado ? '#f9fafb' : 'white', color: usuarioLogueado ? '#6b7280' : '#111' }}
+                  />
                   {errores.email && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.email}</p>}
                 </div>
 
                 <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16 }}>
                   <h3 style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>Código Postal</h3>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input value={form.codigoPostal} onChange={e => setForm(p => ({ ...p, codigoPostal: e.target.value }))}
-                      placeholder="Ej: 4700" style={{ ...inp(errores.codigoPostal), maxWidth: 160 }} />
-                  </div>
+                  <input value={form.codigoPostal} onChange={e => setForm(p => ({ ...p, codigoPostal: e.target.value }))}
+                    placeholder="Ej: 4700" style={{ ...inp(errores.codigoPostal), maxWidth: 160 }} />
                   {errores.codigoPostal && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.codigoPostal}</p>}
                   <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6 }}>Catamarca Capital: 4700</p>
                 </div>
@@ -415,15 +417,14 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* ══ PASO 2: Entrega ══ */}
+            {/* PASO 2: Entrega */}
             {paso === 2 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                {/* Resumen paso 1 */}
                 {[
-                  { label: 'Contacto', valor: form.email,              paso: 1 },
-                  { label: 'CP',       valor: `CP ${form.codigoPostal}`, paso: 1 },
-                ].map(({ label, valor, paso: p }) => (
+                  { label: 'Contacto', valor: form.email,               p: 1 },
+                  { label: 'CP',       valor: `CP ${form.codigoPostal}`, p: 1 },
+                ].map(({ label, valor, p }) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f9f9f9', borderRadius: 10, padding: '10px 16px' }}>
                     <div>
                       <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>{label}</p>
@@ -454,17 +455,13 @@ export default function CheckoutPage() {
                 <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 16 }}>
                   <h3 style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 12 }}>Método de entrega</h3>
                   {errores.tipoEnvio && <p style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{errores.tipoEnvio}</p>}
-
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {/* Retiro Rivadavia */}
                     {[
-                      { value: 'retiro-rivadavia', label: 'Retirar en Rivadavia 564',    desc: 'San Fernando · Lun–Vie 8:30–13 / 17–21:30 · Sáb 9–13 / 17–21' },
-                      { value: 'retiro-valleviejo', label: 'Retirar en Valle Viejo',     desc: 'Av. Pte. Castillo 1165 · Mismo horario' },
-                      { value: 'envio',             label: 'Envío a domicilio',          desc: 'Se calcula según tu provincia' },
+                      { value: 'retiro-rivadavia',  label: 'Retirar en Rivadavia 564', desc: 'San Fernando · Lun–Vie 8:30–13 / 17–21:30 · Sáb 9–13 / 17–21' },
+                      { value: 'retiro-valleviejo', label: 'Retirar en Valle Viejo',   desc: 'Av. Pte. Castillo 1165 · Mismo horario' },
+                      { value: 'envio',             label: 'Envío a domicilio',        desc: 'Se calcula según tu provincia' },
                     ].map(({ value, label, desc }) => {
-                      const esRetiro   = value.startsWith('retiro');
-                      const seleccionado = tipoEnvio === value ||
-                        (value === 'retiro-rivadavia' && tipoEnvio === 'retiro');
+                      const esRetiro = value.startsWith('retiro');
                       return (
                         <label key={value} style={{
                           display: 'flex', alignItems: 'flex-start', gap: 12, padding: 14,
@@ -473,10 +470,7 @@ export default function CheckoutPage() {
                           background: tipoEnvio === value ? '#f0fdf4' : 'white',
                           transition: 'all 0.15s',
                         }}>
-                          <input type="radio" name="entrega" value={value}
-                            checked={tipoEnvio === value}
-                            onChange={() => setTipoEnvio(value)}
-                            style={{ marginTop: 2 }} />
+                          <input type="radio" name="entrega" value={value} checked={tipoEnvio === value} onChange={() => setTipoEnvio(value)} style={{ marginTop: 2 }} />
                           <div style={{ flex: 1 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -498,62 +492,48 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                {/* Dirección si eligió envío */}
+                {/* Dirección */}
                 {tipoEnvio === 'envio' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid #f3f4f6', paddingTop: 16 }}>
                     <h3 style={{ fontSize: 13, fontWeight: 700, color: '#111', margin: 0 }}>Dirección de entrega</h3>
                     <div>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calle *</label>
-                      <input value={form.calle} onChange={e => setForm(p => ({ ...p, calle: e.target.value }))}
-                        placeholder="Av. Belgrano" style={inp(errores.calle)} />
+                      <input value={form.calle} onChange={e => setForm(p => ({ ...p, calle: e.target.value }))} placeholder="Av. Belgrano" style={inp(errores.calle)} />
                       {errores.calle && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.calle}</p>}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Número</label>
-                        <input value={form.numero} onChange={e => setForm(p => ({ ...p, numero: e.target.value }))}
-                          placeholder="1234" style={inp()} />
+                        <input value={form.numero} onChange={e => setForm(p => ({ ...p, numero: e.target.value }))} placeholder="1234" style={inp()} />
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Piso / Depto</label>
-                        <input value={form.piso} onChange={e => setForm(p => ({ ...p, piso: e.target.value }))}
-                          placeholder="3° B" style={inp()} />
+                        <input value={form.piso} onChange={e => setForm(p => ({ ...p, piso: e.target.value }))} placeholder="3° B" style={inp()} />
                       </div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Ciudad *</label>
-                        <input value={form.ciudad} onChange={e => setForm(p => ({ ...p, ciudad: e.target.value }))}
-                          placeholder="San Fernando del V. C." style={inp(errores.ciudad)} />
+                        <input value={form.ciudad} onChange={e => setForm(p => ({ ...p, ciudad: e.target.value }))} placeholder="San Fernando del V. C." style={inp(errores.ciudad)} />
                         {errores.ciudad && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.ciudad}</p>}
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Provincia *</label>
-                        <select value={form.provincia} onChange={e => setForm(p => ({ ...p, provincia: e.target.value }))}
-                          style={{ ...inp(errores.provincia), background: 'white' }}>
+                        <select value={form.provincia} onChange={e => setForm(p => ({ ...p, provincia: e.target.value }))} style={{ ...inp(errores.provincia), background: 'white' }}>
                           <option value="">Seleccioná</option>
                           {PROVINCIAS_AR.map(p => <option key={p} value={p}>{p}</option>)}
                         </select>
                         {errores.provincia && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.provincia}</p>}
                       </div>
                     </div>
-
                     {infoEnvio && (
-                      <div style={{
-                        borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 8,
-                        background: infoEnvio.gratis ? '#f0fdf4' : '#eff6ff',
-                        border: `1px solid ${infoEnvio.gratis ? '#bbf7d0' : '#bfdbfe'}`,
-                      }}>
+                      <div style={{ borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 8, background: infoEnvio.gratis ? '#f0fdf4' : '#eff6ff', border: `1px solid ${infoEnvio.gratis ? '#bbf7d0' : '#bfdbfe'}` }}>
                         <span style={{ fontSize: 16 }}>{infoEnvio.gratis ? '🎉' : '🚚'}</span>
                         <div>
                           <p style={{ fontSize: 13, fontWeight: 600, color: infoEnvio.gratis ? '#15803d' : '#1d4ed8', margin: 0 }}>
-                            {infoEnvio.gratis
-                              ? `¡Envío gratis a ${infoEnvio.zona?.nombre}!`
-                              : `Envío a ${infoEnvio.zona?.nombre}: ${fmt(infoEnvio.precio)}`}
+                            {infoEnvio.gratis ? `¡Envío gratis a ${infoEnvio.zona?.nombre}!` : `Envío a ${infoEnvio.zona?.nombre}: ${fmt(infoEnvio.precio)}`}
                           </p>
-                          <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>
-                            {infoEnvio.diasMin}–{infoEnvio.diasMax} días hábiles
-                          </p>
+                          <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>{infoEnvio.diasMin}–{infoEnvio.diasMax} días hábiles</p>
                         </div>
                       </div>
                     )}
@@ -562,9 +542,7 @@ export default function CheckoutPage() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notas (opcional)</label>
-                  <textarea value={form.notas} onChange={e => setForm(p => ({ ...p, notas: e.target.value }))}
-                    rows={2} placeholder="Aclaraciones, horario preferido..."
-                    style={{ ...inp(), resize: 'none' }} />
+                  <textarea value={form.notas} onChange={e => setForm(p => ({ ...p, notas: e.target.value }))} rows={2} placeholder="Aclaraciones, horario preferido..." style={{ ...inp(), resize: 'none' }} />
                 </div>
 
                 <button onClick={() => { if (validarPaso2()) setPaso(3); }} style={btnPrimario}>
@@ -573,13 +551,12 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* ══ PASO 3: Pago ══ */}
+            {/* PASO 3: Pago */}
             {paso === 3 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                {/* Resumen pasos anteriores */}
                 {[
-                  { label: 'Contacto', valor: form.email,    pasoN: 1 },
+                  { label: 'Contacto', valor: form.email, pasoN: 1 },
                   { label: tipoEnvio?.startsWith('retiro') ? 'Retiro en local' : 'Envío a domicilio',
                     valor: tipoEnvio === 'retiro-rivadavia' ? 'Rivadavia 564, San Fernando'
                          : tipoEnvio === 'retiro-valleviejo' ? 'Av. Pte. Castillo 1165, Valle Viejo'
@@ -619,14 +596,13 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
-                {/* Datos transferencia */}
                 {metodoPago === 'transferencia' && TRANSFERENCIA.cbu && (
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#15803d', margin: 0 }}>Datos para transferir</p>
                     {[
                       { label: 'Titular', value: TRANSFERENCIA.titular },
                       { label: 'Banco',   value: TRANSFERENCIA.banco },
-                      { label: 'CBU',     value: TRANSFERENCIA.cbu,   campo: 'cbu' },
+                      { label: 'CBU',     value: TRANSFERENCIA.cbu,   campo: 'cbu'   },
                       { label: 'Alias',   value: TRANSFERENCIA.alias, campo: 'alias' },
                     ].map(({ label, value, campo }) => (
                       <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -635,13 +611,7 @@ export default function CheckoutPage() {
                           <p style={{ fontSize: 12, fontWeight: 700, color: '#111', margin: 0, fontFamily: 'monospace' }}>{value}</p>
                         </div>
                         {campo && (
-                          <button onClick={() => copiar(campo)} style={{
-                            flexShrink: 0, padding: '4px 10px', borderRadius: 6,
-                            border: '1px solid #86efac', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                            background: copiado === campo ? GREEN : 'white',
-                            color: copiado === campo ? 'white' : GREEN_DARK,
-                            transition: 'all 0.2s',
-                          }}>
+                          <button onClick={() => copiar(campo)} style={{ flexShrink: 0, padding: '4px 10px', borderRadius: 6, border: '1px solid #86efac', fontSize: 11, fontWeight: 600, cursor: 'pointer', background: copiado === campo ? GREEN : 'white', color: copiado === campo ? 'white' : GREEN_DARK, transition: 'all 0.2s' }}>
                             {copiado === campo ? '✓ Copiado' : 'Copiar'}
                           </button>
                         )}
@@ -650,12 +620,9 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Sin datos de transferencia cargados aún */}
                 {metodoPago === 'transferencia' && !TRANSFERENCIA.cbu && (
                   <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px' }}>
-                    <p style={{ fontSize: 13, color: '#92400e', margin: 0 }}>
-                      Te enviaremos los datos bancarios por WhatsApp al confirmar el pedido.
-                    </p>
+                    <p style={{ fontSize: 13, color: '#92400e', margin: 0 }}>Te enviaremos los datos bancarios por WhatsApp al confirmar el pedido.</p>
                   </div>
                 )}
 
@@ -672,7 +639,10 @@ export default function CheckoutPage() {
                   cursor: loading ? 'not-allowed' : 'pointer',
                   boxShadow: loading ? 'none' : '0 4px 16px rgba(109,190,69,0.3)',
                 }}>
-                  {loading ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Procesando...</> : labelBoton()}
+                  {loading
+                    ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Procesando...</>
+                    : metodoPago === 'mercadopago' ? `Pagar con Mercado Pago · ${fmt(total)}` : `Confirmar pedido · ${fmt(total)}`
+                  }
                 </button>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
@@ -683,17 +653,9 @@ export default function CheckoutPage() {
             )}
           </div>
 
-          {/* ── Resumen lateral ── */}
+          {/* Resumen lateral */}
           <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-            <ResumenLateral
-              cart={cart}
-              subtotal={subtotal}
-              costoEnvio={costoEnvio}
-              total={total}
-              tipoEnvio={tipoEnvio}
-              infoEnvio={infoEnvio}
-              metodoPago={metodoPago}
-            />
+            <ResumenLateral cart={cart} subtotal={subtotal} costoEnvio={costoEnvio} total={total} tipoEnvio={tipoEnvio} infoEnvio={infoEnvio} />
           </div>
         </div>
       </div>

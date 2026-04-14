@@ -12,29 +12,50 @@ export async function POST() {
       return NextResponse.json({ ok: false, error: 'No autenticado' }, { status: 401 });
     }
 
-    const cliente = await prisma.cliente.upsert({
-      where:  { supabaseId: user.id },
-      update: {
-        email:  user.email,
-        nombre: user.user_metadata?.nombre
-                  ?? user.user_metadata?.full_name
-                  ?? user.email.split('@')[0],
-        updatedAt: new Date(),
-      },
-      create: {
-        supabaseId: user.id,
-        email:      user.email,
-        nombre:     user.user_metadata?.nombre
-                      ?? user.user_metadata?.full_name
-                      ?? user.email.split('@')[0],
-        updatedAt:  new Date(),
-      },
+    const emailNorm = user.email.trim().toLowerCase();
+    const nombre    = user.user_metadata?.nombre
+                   ?? user.user_metadata?.full_name
+                   ?? emailNorm.split('@')[0];
+
+    // 1. Ya existe con supabaseId → solo actualizar
+    const porSupabaseId = await prisma.cliente.findUnique({
+      where: { supabaseId: user.id },
+    });
+
+    if (porSupabaseId) {
+      const cliente = await prisma.cliente.update({
+        where: { supabaseId: user.id },
+        data:  { email: emailNorm, nombre, updatedAt: new Date() },
+        select: { id: true },
+      });
+      return NextResponse.json({ ok: true, clienteId: cliente.id });
+    }
+
+    // 2. Existe por email (compró como invitado) → vincular supabaseId
+    const porEmail = await prisma.cliente.findUnique({
+      where: { email: emailNorm },
+    });
+
+    if (porEmail) {
+      const cliente = await prisma.cliente.update({
+        where: { email: emailNorm },
+        data:  { supabaseId: user.id, nombre, updatedAt: new Date() },
+        select: { id: true },
+      });
+      return NextResponse.json({ ok: true, clienteId: cliente.id });
+    }
+
+    // 3. No existe → crear
+    const cliente = await prisma.cliente.create({
+      data: { supabaseId: user.id, email: emailNorm, nombre },
+      select: { id: true },
     });
 
     return NextResponse.json({ ok: true, clienteId: cliente.id });
+
   } catch (error) {
     if (error.code === 'P2002') {
-      return NextResponse.json({ ok: false, error: 'Email ya registrado' }, { status: 409 });
+      return NextResponse.json({ ok: true });
     }
     console.error('[POST /api/auth/sync]', error);
     return NextResponse.json({ ok: false, error: 'Error al sincronizar' }, { status: 500 });

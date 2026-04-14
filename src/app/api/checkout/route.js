@@ -3,9 +3,88 @@ import { NextResponse }          from 'next/server';
 import { prisma }                from '@/lib/prisma';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
 import { crearVentaEnDevhub }    from '@/lib/devhub';
-import { createClient }          from '@/lib/supabase/server';
+import { createServerClient }    from '@supabase/ssr';
+import { cookies }               from 'next/headers';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+
+// ── Obtener usuario de Supabase (si está logueado) ────────────────────────────
+async function getSupabaseUser() {
+  try {
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll: () => cookieStore.getAll(),
+          setAll: () => {},
+        },
+      }
+    );
+    const { data: { user } } = await supabase.auth.getUser();
+    return user ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Upsert cliente vinculando supabaseId si está logueado ─────────────────────
+async function upsertCliente({ supabaseId, email, nombre, telefono }) {
+  const emailNorm = email.trim().toLowerCase();
+
+  if (supabaseId) {
+    // Usuario logueado: buscar primero por supabaseId, luego por email
+    const existente = await prisma.cliente.findFirst({
+      where: {
+        OR: [
+          { supabaseId },
+          { email: emailNorm },
+        ],
+      },
+    });
+
+    if (existente) {
+      // Actualizar y asegurar que supabaseId quede vinculado
+      return prisma.cliente.update({
+        where: { id: existente.id },
+        data: {
+          nombre:    nombre.trim(),
+          telefono:  telefono?.trim() ?? existente.telefono,
+          supabaseId,                    // vincular si no estaba
+          email:     emailNorm,
+        },
+        select: { id: true },
+      });
+    } else {
+      // Crear nuevo cliente logueado
+      return prisma.cliente.create({
+        data: {
+          email:     emailNorm,
+          nombre:    nombre.trim(),
+          telefono:  telefono?.trim() ?? null,
+          supabaseId,
+        },
+        select: { id: true },
+      });
+    }
+  }
+
+  // Usuario invitado: upsert por email
+  return prisma.cliente.upsert({
+    where:  { email: emailNorm },
+    update: {
+      nombre:   nombre.trim(),
+      telefono: telefono?.trim() ?? undefined,
+    },
+    create: {
+      email:    emailNorm,
+      nombre:   nombre.trim(),
+      telefono: telefono?.trim() ?? null,
+    },
+    select: { id: true },
+  });
+}
 
 // ── Mercado Pago ──────────────────────────────────────────────────────────────
 async function crearPreferenciaMp(pedido, items, compradorEmail) {
@@ -53,7 +132,7 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
   }
 }
 
-// ── Registrar venta en DevHub y bajar stock ───────────────────────────────────
+// ── Sincronizar con DevHub ────────────────────────────────────────────────────
 async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) {
   try {
     const result = await crearVentaEnDevhub({
@@ -63,10 +142,7 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
         cantidad:   item.cantidad,
         precioUnit: item.precioUnit,
       })),
-      cliente: {
-        nombre: compradorNombre,
-        dni:    null,
-      },
+      cliente: { nombre: compradorNombre, dni: null },
       metodoPago,
       descuento:     pedido.descuento ?? 0,
       observaciones: pedido.observaciones,
@@ -80,7 +156,6 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
 
     console.log(`[DevHub] Venta creada: ${result.ventaDevhubId} para pedido ${pedido.id}`);
     return result;
-
   } catch (err) {
     console.error('[DevHub] Error al crear venta:', err.message);
     return null;
@@ -105,7 +180,7 @@ export async function POST(req) {
       direccion,
     } = body;
 
-    // ── Validaciones ──────────────────────────────────────────────────────────
+    // ── Validaciones ─────────────────────────────────────────────────────────
     if (!items?.length)
       return NextResponse.json({ ok: false, error: 'El carrito está vacío' }, { status: 400 });
     if (!compradorNombre?.trim())
@@ -117,19 +192,15 @@ export async function POST(req) {
     if (tipoEnvio === 'envio' && !direccion)
       return NextResponse.json({ ok: false, error: 'Dirección requerida para envío' }, { status: 400 });
 
+    // Validar precioUnit
     for (const item of items) {
-      if (item.precioUnit === undefined || item.precioUnit === null)
-        return NextResponse.json({ ok: false, error: `Precio faltante para: ${item.nombre}` }, { status: 400 });
+      if (item.precioUnit === undefined || item.precioUnit === null) {
+        return NextResponse.json(
+          { ok: false, error: `Precio faltante para: ${item.nombre}` },
+          { status: 400 }
+        );
+      }
     }
-
-    // ── Obtener supabaseId si hay sesión activa ───────────────────────────────
-    // Esto vincula el pedido al usuario logueado para que aparezca en /cuenta
-    let supabaseId = null;
-    try {
-      const supabase           = await createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) supabaseId = user.id;
-    } catch {}
 
     // ── Verificar stock en DevHub ─────────────────────────────────────────────
     for (const item of items) {
@@ -154,53 +225,26 @@ export async function POST(req) {
       }
     }
 
+    // ── Obtener usuario Supabase (si está logueado) ───────────────────────────
+    const supabaseUser = await getSupabaseUser();
+    const supabaseId   = supabaseUser?.id ?? null;
+
     // ── Upsert cliente ────────────────────────────────────────────────────────
-    // Si hay sesión → buscamos primero por supabaseId para no duplicar
-    // Si no hay sesión → buscamos por email (compra como invitado)
     let clienteId = null;
     try {
-      const emailNorm = compradorEmail.trim().toLowerCase();
-
-      if (supabaseId) {
-        // Usuario logueado: upsert por supabaseId
-        const cliente = await prisma.cliente.upsert({
-          where:  { supabaseId },
-          update: {
-            nombre:   compradorNombre.trim(),
-            telefono: compradorTelefono?.trim() ?? undefined,
-            email:    emailNorm,
-          },
-          create: {
-            supabaseId,
-            email:    emailNorm,
-            nombre:   compradorNombre.trim(),
-            telefono: compradorTelefono?.trim() ?? null,
-          },
-          select: { id: true },
-        });
-        clienteId = cliente.id;
-      } else {
-        // Invitado: upsert por email
-        const cliente = await prisma.cliente.upsert({
-          where:  { email: emailNorm },
-          update: {
-            nombre:   compradorNombre.trim(),
-            telefono: compradorTelefono?.trim() ?? undefined,
-          },
-          create: {
-            email:    emailNorm,
-            nombre:   compradorNombre.trim(),
-            telefono: compradorTelefono?.trim() ?? null,
-          },
-          select: { id: true },
-        });
-        clienteId = cliente.id;
-      }
+      const cliente = await upsertCliente({
+        supabaseId,
+        email:    compradorEmail,
+        nombre:   compradorNombre,
+        telefono: compradorTelefono,
+      });
+      clienteId = cliente.id;
     } catch (err) {
       console.error('[Cliente upsert]', err);
+      // No bloqueamos el pedido si falla el upsert
     }
 
-    // ── Crear pedido + dirección en transacción ───────────────────────────────
+    // ── Crear pedido + dirección ──────────────────────────────────────────────
     const pedido = await prisma.$transaction(async (tx) => {
       let direccionId = null;
 
@@ -264,7 +308,7 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, pedidoId: pedido.id, mpInitPoint });
     }
 
-    // ── Efectivo / Transferencia → sincronizar DevHub ahora ──────────────────
+    // ── Efectivo / Transferencia: sincronizar DevHub ──────────────────────────
     const itemsConDevhub = items.filter(i => i.productoDevhubId);
     if (itemsConDevhub.length > 0) {
       await sincronizarConDevhub(pedido, itemsConDevhub, compradorNombre.trim(), metodoPago);

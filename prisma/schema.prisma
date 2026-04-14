@@ -8,14 +8,15 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model   id          String      @id @default(cuid())
+model Cliente {
+  id          String      @id @default(cuid())
   nombre      String
   email       String      @unique
   dni         String?
   telefono    String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
-  supabaseId  String?
+  supabaseId  String?     @unique
   direcciones Direccion[]
   pedidos     Pedido[]
 
@@ -89,10 +90,6 @@ model PedidoItem {
   color            String?
   imagen           String?
   talle            String?
-oat
-  talle            String?
-  color            String?
-  imagen           String?
   pedido           Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
 
   @@index([pedidoId])
