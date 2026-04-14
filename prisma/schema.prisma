@@ -66,9 +66,27 @@ model Pedido {
   enviadoAt         DateTime?    @db.Timestamp(6)
   entregadoAt       DateTime?    @db.Timestamp(6)
   notasInternas     String?
-  cliente           Cliente?     @relation(fields: [clienteId], references: [id])
-  direccion         Direccion?   @relation(fields: [direccionId], references: [id])
-  items             PedidoItem[]
+
+  // ── OCA ──────────────────────────────────────────────────
+  // Número de envío asignado por OCA (ej: "00123456789")
+  ocaNumeroEnvio    String?
+  // URL firmada de la etiqueta PDF para imprimir
+  ocaEtiquetaUrl    String?
+  // Estado sincronizado desde OCA:
+  // PENDIENTE | EN_CAMINO | EN_SUCURSAL | ENTREGADO | DEVUELTO | SIN_MOVIMIENTO
+  ocaEstado         String?
+  // Fecha en que OCA admitió el paquete
+  ocaFechaDespacho  DateTime?
+  // Fecha de entrega efectiva reportada por OCA
+  ocaFechaEntrega   DateTime?
+  // ID de sucursal OCA de despacho (si es retiro en sucursal)
+  ocaSucursalId     String?
+  // Número de admisión OCA (requerido para algunos endpoints)
+  ocaAdmision       String?
+
+  cliente   Cliente?     @relation(fields: [clienteId], references: [id])
+  direccion Direccion?   @relation(fields: [direccionId], references: [id])
+  items     PedidoItem[]
 
   @@index([estado])
   @@index([compradorEmail])
@@ -76,6 +94,8 @@ model Pedido {
   @@index([createdAt])
   @@index([clienteId])
   @@index([ventaDevhubId])
+  @@index([ocaNumeroEnvio])
+  @@index([ocaEstado])
 }
 
 model PedidoItem {

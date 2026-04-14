@@ -1,4 +1,7 @@
 // src/app/api/checkout/route.js
+// CAMBIO: Agregada validación de precios server-side para prevenir manipulación.
+// Los precios del carrito (client) se verifican contra DevHub antes de crear el pedido.
+
 import { NextResponse }          from 'next/server';
 import { prisma }                from '@/lib/prisma';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
@@ -8,7 +11,10 @@ import { cookies }               from 'next/headers';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-// ── Obtener usuario de Supabase (si está logueado) ────────────────────────────
+// Tolerancia de precio: 1% para cubrir diferencias de redondeo
+const TOLERANCIA_PRECIO = 0.01;
+
+// ── Obtener usuario de Supabase ──────────────────────────────────────────────
 async function getSupabaseUser() {
   try {
     const cookieStore = await cookies();
@@ -29,59 +35,129 @@ async function getSupabaseUser() {
   }
 }
 
-// ── Upsert cliente vinculando supabaseId si está logueado ─────────────────────
+// ── NUEVO: Validar precios contra DevHub ─────────────────────────────────────
+/**
+ * Verifica que los precios enviados por el cliente coincidan con los
+ * precios reales en DevHub. Previene manipulación del carrito.
+ *
+ * @returns {{ ok: boolean, error?: string, itemsValidados?: object[] }}
+ */
+async function validarPrecios(items) {
+  const errores = [];
+  const itemsValidados = [];
+
+  for (const item of items) {
+    let precioReal = null;
+
+    try {
+      if (item.varianteDevhubId) {
+        // Producto con variante (talle/color)
+        const variante = await devhub.productoVariante.findFirst({
+          where: {
+            id:       item.varianteDevhubId,
+            tenantId: JMR_TENANT_ID,
+            activo:   true,
+          },
+          select: {
+            precio:   true,
+            producto: { select: { precio: true } },
+          },
+        });
+
+        if (!variante) {
+          errores.push(`Variante no encontrada para: ${item.nombre}`);
+          continue;
+        }
+
+        // Si la variante tiene precio propio, usarlo; si no, usar el del producto
+        precioReal = variante.precio ?? variante.producto.precio;
+
+      } else if (item.productoDevhubId) {
+        // Producto sin variante
+        const producto = await devhub.producto.findFirst({
+          where: {
+            id:       item.productoDevhubId,
+            tenantId: JMR_TENANT_ID,
+            activo:   true,
+          },
+          select: { precio: true },
+        });
+
+        if (!producto) {
+          errores.push(`Producto no encontrado: ${item.nombre}`);
+          continue;
+        }
+
+        precioReal = producto.precio;
+      } else {
+        // Item sin ID de DevHub (no puede validarse — rechazar)
+        errores.push(`Item sin ID de DevHub: ${item.nombre}`);
+        continue;
+      }
+
+      // Comparar precio enviado vs precio real
+      const diferencia = Math.abs(item.precioUnit - precioReal) / precioReal;
+
+      if (diferencia > TOLERANCIA_PRECIO) {
+        errores.push(
+          `Precio incorrecto para "${item.nombre}". ` +
+          `Recibido: $${item.precioUnit} / Real: $${precioReal}`
+        );
+        continue;
+      }
+
+      // Usar el precio real (no el del cliente) en el pedido
+      itemsValidados.push({
+        ...item,
+        precioUnit: precioReal,
+        subtotal:   precioReal * item.cantidad,
+      });
+
+    } catch (err) {
+      errores.push(`Error validando "${item.nombre}": ${err.message}`);
+    }
+  }
+
+  if (errores.length > 0) {
+    console.warn('[Checkout] Validación de precios fallida:', errores);
+    return { ok: false, error: errores.join(' | ') };
+  }
+
+  return { ok: true, itemsValidados };
+}
+
+// ── Upsert cliente ────────────────────────────────────────────────────────────
 async function upsertCliente({ supabaseId, email, nombre, telefono }) {
   const emailNorm = email.trim().toLowerCase();
 
   if (supabaseId) {
-    // Usuario logueado: buscar primero por supabaseId, luego por email
     const existente = await prisma.cliente.findFirst({
-      where: {
-        OR: [
-          { supabaseId },
-          { email: emailNorm },
-        ],
-      },
+      where: { OR: [{ supabaseId }, { email: emailNorm }] },
     });
 
     if (existente) {
-      // Actualizar y asegurar que supabaseId quede vinculado
       return prisma.cliente.update({
         where: { id: existente.id },
         data: {
           nombre:    nombre.trim(),
           telefono:  telefono?.trim() ?? existente.telefono,
-          supabaseId,                    // vincular si no estaba
-          email:     emailNorm,
-        },
-        select: { id: true },
-      });
-    } else {
-      // Crear nuevo cliente logueado
-      return prisma.cliente.create({
-        data: {
-          email:     emailNorm,
-          nombre:    nombre.trim(),
-          telefono:  telefono?.trim() ?? null,
           supabaseId,
+          email:     emailNorm,
         },
         select: { id: true },
       });
     }
+
+    return prisma.cliente.create({
+      data: { email: emailNorm, nombre: nombre.trim(), telefono: telefono?.trim() ?? null, supabaseId },
+      select: { id: true },
+    });
   }
 
-  // Usuario invitado: upsert por email
   return prisma.cliente.upsert({
     where:  { email: emailNorm },
-    update: {
-      nombre:   nombre.trim(),
-      telefono: telefono?.trim() ?? undefined,
-    },
-    create: {
-      email:    emailNorm,
-      nombre:   nombre.trim(),
-      telefono: telefono?.trim() ?? null,
-    },
+    update: { nombre: nombre.trim(), telefono: telefono?.trim() ?? undefined },
+    create: { email: emailNorm, nombre: nombre.trim(), telefono: telefono?.trim() ?? null },
     select: { id: true },
   });
 }
@@ -97,7 +173,7 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
         id:          item.productoDevhubId ?? 'producto',
         title:       item.nombre,
         quantity:    item.cantidad,
-        unit_price:  item.precioUnit,
+        unit_price:  item.precioUnit,  // precio ya validado
         currency_id: 'ARS',
       })),
       payer: { email: compradorEmail },
@@ -120,11 +196,7 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
     const data = await res.json();
     if (!res.ok) { console.error('[MP]', data); return null; }
 
-    await prisma.pedido.update({
-      where: { id: pedido.id },
-      data:  { mpPaymentId: data.id },
-    });
-
+    await prisma.pedido.update({ where: { id: pedido.id }, data: { mpPaymentId: data.id } });
     return data.init_point;
   } catch (err) {
     console.error('[MP] Error:', err);
@@ -142,19 +214,14 @@ async function sincronizarConDevhub(pedido, items, compradorNombre, metodoPago) 
         cantidad:   item.cantidad,
         precioUnit: item.precioUnit,
       })),
-      cliente: { nombre: compradorNombre, dni: null },
+      cliente:       { nombre: compradorNombre, dni: null },
       metodoPago,
       descuento:     pedido.descuento ?? 0,
       observaciones: pedido.observaciones,
       pedidoJmrId:   pedido.id,
     });
 
-    await prisma.pedido.update({
-      where: { id: pedido.id },
-      data:  { ventaDevhubId: result.ventaDevhubId },
-    });
-
-    console.log(`[DevHub] Venta creada: ${result.ventaDevhubId} para pedido ${pedido.id}`);
+    await prisma.pedido.update({ where: { id: pedido.id }, data: { ventaDevhubId: result.ventaDevhubId } });
     return result;
   } catch (err) {
     console.error('[DevHub] Error al crear venta:', err.message);
@@ -168,9 +235,7 @@ export async function POST(req) {
     const body = await req.json();
     const {
       items,
-      subtotal,
       costoEnvio = 0,
-      total,
       metodoPago,
       tipoEnvio,
       compradorNombre,
@@ -180,7 +245,7 @@ export async function POST(req) {
       direccion,
     } = body;
 
-    // ── Validaciones ─────────────────────────────────────────────────────────
+    // ── Validaciones básicas ──────────────────────────────────────────────────
     if (!items?.length)
       return NextResponse.json({ ok: false, error: 'El carrito está vacío' }, { status: 400 });
     if (!compradorNombre?.trim())
@@ -192,18 +257,23 @@ export async function POST(req) {
     if (tipoEnvio === 'envio' && !direccion)
       return NextResponse.json({ ok: false, error: 'Dirección requerida para envío' }, { status: 400 });
 
-    // Validar precioUnit
-    for (const item of items) {
-      if (item.precioUnit === undefined || item.precioUnit === null) {
-        return NextResponse.json(
-          { ok: false, error: `Precio faltante para: ${item.nombre}` },
-          { status: 400 }
-        );
-      }
+    // ── NUEVO: Validar precios server-side ────────────────────────────────────
+    const validacion = await validarPrecios(items);
+    if (!validacion.ok) {
+      return NextResponse.json(
+        { ok: false, error: `Precios incorrectos: ${validacion.error}` },
+        { status: 422 }
+      );
     }
+    // A partir de acá usar itemsValidados (con precios reales de DevHub)
+    const itemsValidados = validacion.itemsValidados;
+
+    // Recalcular totales con precios reales
+    const subtotal = itemsValidados.reduce((a, i) => a + i.subtotal, 0);
+    const total    = subtotal + costoEnvio;
 
     // ── Verificar stock en DevHub ─────────────────────────────────────────────
-    for (const item of items) {
+    for (const item of itemsValidados) {
       if (item.varianteDevhubId) {
         const v = await devhub.productoVariante.findFirst({
           where: { id: item.varianteDevhubId, tenantId: JMR_TENANT_ID, activo: true },
@@ -225,7 +295,7 @@ export async function POST(req) {
       }
     }
 
-    // ── Obtener usuario Supabase (si está logueado) ───────────────────────────
+    // ── Obtener usuario Supabase ──────────────────────────────────────────────
     const supabaseUser = await getSupabaseUser();
     const supabaseId   = supabaseUser?.id ?? null;
 
@@ -233,15 +303,11 @@ export async function POST(req) {
     let clienteId = null;
     try {
       const cliente = await upsertCliente({
-        supabaseId,
-        email:    compradorEmail,
-        nombre:   compradorNombre,
-        telefono: compradorTelefono,
+        supabaseId, email: compradorEmail, nombre: compradorNombre, telefono: compradorTelefono,
       });
       clienteId = cliente.id;
     } catch (err) {
       console.error('[Cliente upsert]', err);
-      // No bloqueamos el pedido si falla el upsert
     }
 
     // ── Crear pedido + dirección ──────────────────────────────────────────────
@@ -279,13 +345,13 @@ export async function POST(req) {
           compradorTelefono: compradorTelefono?.trim() ?? null,
           observaciones:     notas ?? null,
           items: {
-            create: items.map(item => ({
+            create: itemsValidados.map(item => ({
               productoDevhubId: item.productoDevhubId ?? null,
               varianteDevhubId: item.varianteDevhubId ?? null,
               nombre:           item.nombre,
               cantidad:         item.cantidad,
-              precioUnit:       item.precioUnit,
-              subtotal:         item.subtotal ?? item.precioUnit * item.cantidad,
+              precioUnit:       item.precioUnit,   // precio validado y real
+              subtotal:         item.subtotal,
               talle:            item.talle    ?? null,
               color:            item.color    ?? null,
               imagen:           item.imagen   ?? null,
@@ -297,7 +363,7 @@ export async function POST(req) {
 
     // ── Mercado Pago ──────────────────────────────────────────────────────────
     if (metodoPago === 'mercadopago') {
-      const mpInitPoint = await crearPreferenciaMp(pedido, items, compradorEmail);
+      const mpInitPoint = await crearPreferenciaMp(pedido, itemsValidados, compradorEmail);
       if (!mpInitPoint) {
         return NextResponse.json({
           ok:       true,
@@ -309,7 +375,7 @@ export async function POST(req) {
     }
 
     // ── Efectivo / Transferencia: sincronizar DevHub ──────────────────────────
-    const itemsConDevhub = items.filter(i => i.productoDevhubId);
+    const itemsConDevhub = itemsValidados.filter(i => i.productoDevhubId);
     if (itemsConDevhub.length > 0) {
       await sincronizarConDevhub(pedido, itemsConDevhub, compradorNombre.trim(), metodoPago);
     }

@@ -6,6 +6,7 @@ import {
   ShoppingBag, Search, X, Loader2, Eye,
   RefreshCw, CheckCircle, AlertTriangle,
 } from 'lucide-react';
+import OcaPanel from '@/components/admin/OcaPanel';
 
 const ESTADOS = {
   PENDIENTE:   { label: 'Pendiente',   color: '#f59e0b', bg: '#fef3c7', border: '#fde68a' },
@@ -400,6 +401,16 @@ export default function AdminPedidosPage() {
                   </button>
                 )}
               </div>
+
+              {pedido.tipoEnvio === 'envio' && (
+                <OcaPanel
+                  pedido={detalle}
+                  onActualizado={(cambios) => {
+                    setDetalle(prev => ({ ...prev, ...cambios }));
+                    setPedidos(prev => prev.map(p => p.id === detalle.id ? { ...p, ...cambios } : p));
+                  }}
+                />
+              )}
 
               {/* Comprador */}
               <div>
