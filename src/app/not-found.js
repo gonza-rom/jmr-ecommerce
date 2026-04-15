@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { ShoppingBag, Home, Search, ArrowLeft } from 'lucide-react';
 
+export const dynamic = 'force-dynamic'; // ← agregar acá
+
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">

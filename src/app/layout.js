@@ -4,6 +4,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 
+export const dynamic = 'force-dynamic'; // ← agregar acá
+
 const inter = Inter({ subsets: ['latin'] });
 
 export const viewport = {
