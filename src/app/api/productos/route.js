@@ -1,6 +1,6 @@
 import { getProductos } from "@/lib/devhub";
 
-export const revalidate = 60;
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
