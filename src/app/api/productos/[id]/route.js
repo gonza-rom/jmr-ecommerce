@@ -1,5 +1,7 @@
 import { getProducto } from "@/lib/devhub";
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request, context) {
   try {
     const params = await context.params;
