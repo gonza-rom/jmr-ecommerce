@@ -402,7 +402,7 @@ export default function AdminPedidosPage() {
                 )}
               </div>
 
-              {pedido.tipoEnvio === 'envio' && (
+              {detalle.tipoEnvio === 'envio' && (
                 <OcaPanel
                   pedido={detalle}
                   onActualizado={(cambios) => {

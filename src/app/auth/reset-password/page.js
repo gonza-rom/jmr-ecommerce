@@ -79,23 +79,29 @@ function ResetContent() {
   // Supabase pone el token en el fragment (#) de la URL.
   // onAuthStateChange lo detecta con el evento PASSWORD_RECOVERY.
   useEffect(() => {
+    const supabase = createClient();
+    // supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      // Verificar si ya hay sesión activa (caso del F5)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSesionLista(true);
+        setVerificando(false);
+      }
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'PASSWORD_RECOVERY' && session) {
           setSesionLista(true);
           setVerificando(false);
         } else if (event === 'SIGNED_IN' && session) {
-          // Ya está logueado y llegó desde el link — también válido
           setSesionLista(true);
           setVerificando(false);
         }
       }
     );
 
-    // Timeout de seguridad — si en 3s no llega el evento, mostrar error
-    const timeout = setTimeout(() => {
-      setVerificando(false);
-    }, 3000);
+    const timeout = setTimeout(() => setVerificando(false), 6000);
 
     return () => {
       subscription.unsubscribe();

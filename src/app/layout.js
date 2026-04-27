@@ -3,6 +3,8 @@ import './globals.css';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
+import { ToastProvider } from '@/context/ToastContext';
+
 
 export const dynamic = 'force-dynamic'; // ← agregar acá
 
@@ -92,11 +94,13 @@ export default function RootLayout({ children }) {
       </head>
       <body className={inter.className}>
         <CartProvider>
-          <Navbar />
-          <main className="min-h-screen">
-            {children}
-          </main>
-          <Footer />
+          <ToastProvider>
+            <Navbar />
+            <main className="min-h-screen">
+              {children}
+            </main>
+            <Footer />
+          </ToastProvider>
         </CartProvider>
       </body>
     </html>

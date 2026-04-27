@@ -2,11 +2,13 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Menu, X, User, LogIn, Package } from 'lucide-react';
+import { ShoppingCart, Menu, X, User, LogIn, Package, LayoutDashboard } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useCart } from '@/context/CartContext';
 import { createClient } from '@/lib/supabase/client';
 import Cart from './Cart';
+
+const ADMINS = ["jmrmarroquineria@gmail.com"];
 
 export default function Navbar() {
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -15,6 +17,8 @@ export default function Navbar() {
   const { toggleCart, getItemCount }  = useCart();
   const itemCount = getItemCount();
   const supabase = createClient();
+
+  const esAdmin = user && ADMINS.includes(user.email);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -58,11 +62,24 @@ export default function Navbar() {
             <div className="flex items-center space-x-1">
               {!loadingUser && (
                 user ? (
-                  <Link href="/cuenta" className="relative p-2 text-gray-700 hover:text-jmr-green transition-colors" title="Mi cuenta">
-                    <div className="w-8 h-8 rounded-full bg-jmr-green flex items-center justify-center">
-                      <User className="w-4 h-4 text-white" />
-                    </div>
-                  </Link>
+                  <div className="flex items-center gap-1">
+                    {/* Link al admin — solo visible para admins */}
+                    {esAdmin && (
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-jmr-green hover:bg-jmr-green-dark rounded-lg transition-colors"
+                        title="Panel admin"
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        <span className="hidden sm:inline">Admin</span>
+                      </Link>
+                    )}
+                    <Link href="/cuenta" className="relative p-2 text-gray-700 hover:text-jmr-green transition-colors" title="Mi cuenta">
+                      <div className="w-8 h-8 rounded-full bg-jmr-green flex items-center justify-center">
+                        <User className="w-4 h-4 text-white" />
+                      </div>
+                    </Link>
+                  </div>
                 ) : (
                   <div className="hidden sm:flex items-center gap-2">
                     <Link href="/mis-pedidos" className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-500 hover:text-jmr-green transition-colors" title="Seguir mi pedido">
@@ -103,9 +120,16 @@ export default function Navbar() {
 
               <div className="pt-2 border-t border-gray-100 space-y-1">
                 {user ? (
-                  <Link href="/cuenta" onClick={() => setMenuAbierto(false)} className="flex items-center gap-2 py-2 text-jmr-green font-semibold transition-colors">
-                    <User className="w-4 h-4" /> Mi cuenta
-                  </Link>
+                  <>
+                    {esAdmin && (
+                      <Link href="/admin" onClick={() => setMenuAbierto(false)} className="flex items-center gap-2 py-2 text-jmr-green font-semibold transition-colors">
+                        <LayoutDashboard className="w-4 h-4" /> Panel Admin
+                      </Link>
+                    )}
+                    <Link href="/cuenta" onClick={() => setMenuAbierto(false)} className="flex items-center gap-2 py-2 text-gray-700 hover:text-jmr-green font-medium transition-colors">
+                      <User className="w-4 h-4" /> Mi cuenta
+                    </Link>
+                  </>
                 ) : (
                   <>
                     <Link href="/auth/login" onClick={() => setMenuAbierto(false)} className="flex items-center gap-2 py-2 text-gray-700 hover:text-jmr-green font-medium transition-colors">

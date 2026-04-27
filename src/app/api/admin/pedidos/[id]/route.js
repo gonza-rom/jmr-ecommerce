@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 // Estados que disparan email al cliente
 const ESTADOS_CON_EMAIL = new Set([
-  'CONFIRMADO', 'PREPARANDO', 'ENVIADO', 'ENTREGADO', 'CANCELADO',
+  'CONFIRMADO', 'ENVIADO', 'ENTREGADO', 'CANCELADO',
 ]);
 
 export async function PATCH(req, context) {

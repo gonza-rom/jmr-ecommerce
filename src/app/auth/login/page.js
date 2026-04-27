@@ -1,5 +1,8 @@
 'use client';
 // src/app/auth/login/page.js
+// CAMBIO: handleRecuperar ahora llama a /api/auth/recuperar-password
+// en lugar de supabase.auth.resetPasswordForEmail directamente.
+
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -59,6 +62,8 @@ function LoginContent() {
           else setError(err.message);
           return;
         }
+        // Supabase envía el email de confirmación nativo.
+        // Cuando el usuario confirma, /auth/callback dispara enviarBienvenida().
         setExito('¡Cuenta creada! Revisá tu email para confirmar tu cuenta antes de ingresar.');
 
       } else {
@@ -98,17 +103,29 @@ function LoginContent() {
     finally  { setLoadingG(false); }
   }
 
-  async function handleRecuperar() {
-    if (!email.trim()) { setError('Ingresá tu email para recuperar la contraseña'); return; }
-    setLoading(true); setError('');
+  // ── Recuperar contraseña via nuestro endpoint ─────────────────────────────
+    async function handleRecuperar() {
+    if (!email.trim()) { 
+      setError('Ingresá tu email para recuperar la contraseña'); 
+      return; 
+    }
+    setLoading(true); 
+    setError('');
+    
     try {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: `${window.location.origin}/auth/reset-password`,
-      });
-      if (err) setError(err.message);
-      else setExito('Te enviamos un email para restablecer tu contraseña.');
-    } catch { setError('Error al enviar el email'); }
-    finally  { setLoading(false); }
+      const { error: err } = await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth/callback?redirect=/auth/reset-password`,
+        }
+      );
+      // Siempre mostrar el mismo mensaje
+      setExito('Si ese email tiene una cuenta, vas a recibir las instrucciones en breve.');
+    } catch {
+      setExito('Si ese email tiene una cuenta, vas a recibir las instrucciones en breve.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -127,7 +144,6 @@ function LoginContent() {
           </Link>
         </div>
 
-        {/* Título */}
         <h1 style={s.titulo}>{modo === 'login' ? 'Iniciá sesión' : 'Creá tu cuenta'}</h1>
         <p style={s.subtitulo}>
           {modo === 'login'

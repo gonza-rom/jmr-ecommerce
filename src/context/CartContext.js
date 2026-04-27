@@ -1,9 +1,16 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { showToast } from 'nextjs-toast-notify';
 
 const CartContext = createContext();
+
+// Helper para disparar toasts sin depender del contexto
+function dispatchToast(type, title, desc) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('jmr-toast', {
+    detail: { type, title, desc }
+  }));
+}
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
@@ -35,29 +42,17 @@ export function CartProvider({ children }) {
             : item
         )
       );
-      showToast.success(`🛒 Se actualizó la cantidad de ${producto.nombre}`, {
-        position: 'top-center',
-        duration: 2000,
-      });
+      dispatchToast('cart', producto.nombre, 'Cantidad actualizada');
     } else {
       setCart(prevCart => [...prevCart, { ...producto, cantidad }]);
-      showToast.success(`✅ ${producto.nombre} agregado al carrito`, {
-        position: 'top-center',
-        duration: 2000,
-      });
+      dispatchToast('cart', producto.nombre, 'Agregado al carrito');
     }
-
-    // ✅ REMOVIDO: ya no se abre el carrito automáticamente.
-    // El usuario puede abrirlo cuando quiera desde el ícono de la navbar.
   };
 
   const removeFromCart = (productoId) => {
     const producto = cart.find(item => item.id === productoId);
     if (producto) {
-      showToast.info(`🗑️ ${producto.nombre} eliminado del carrito`, {
-        position: 'top-center',
-        duration: 2000,
-      });
+      dispatchToast('warning', producto.nombre, 'Eliminado del carrito');
     }
     setCart(prevCart => prevCart.filter(item => item.id !== productoId));
   };
@@ -76,36 +71,22 @@ export function CartProvider({ children }) {
 
   const clearCart = () => {
     if (cart.length > 0) {
-      showToast.warning('🧹 Carrito vaciado', {
-        position: 'top-center',
-        duration: 2000,
-      });
+      dispatchToast('warning', 'Carrito vaciado', 'Se eliminaron todos los productos');
     }
     setCart([]);
     localStorage.removeItem('jmr-cart');
   };
 
-  const getTotal = () => cart.reduce((total, item) => total + item.precio * item.cantidad, 0);
-
+  const getTotal    = () => cart.reduce((total, item) => total + item.precio * item.cantidad, 0);
   const getItemCount = () => cart.reduce((count, item) => count + item.cantidad, 0);
-
-  const toggleCart = () => setIsOpen(prev => !prev);
+  const toggleCart  = () => setIsOpen(prev => !prev);
 
   return (
-    <CartContext.Provider
-      value={{
-        cart,
-        isOpen,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        getTotal,
-        getItemCount,
-        toggleCart,
-        setIsOpen,
-      }}
-    >
+    <CartContext.Provider value={{
+      cart, isOpen, addToCart, removeFromCart,
+      updateQuantity, clearCart, getTotal,
+      getItemCount, toggleCart, setIsOpen,
+    }}>
       {children}
     </CartContext.Provider>
   );
@@ -113,8 +94,6 @@ export function CartProvider({ children }) {
 
 export function useCart() {
   const context = useContext(CartContext);
-  if (!context) {
-    throw new Error('useCart debe usarse dentro de CartProvider');
-  }
+  if (!context) throw new Error('useCart debe usarse dentro de CartProvider');
   return context;
 }

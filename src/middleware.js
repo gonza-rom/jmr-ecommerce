@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse }       from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
-// IMPORTANTE: En el middleware (Edge Runtime) NO usar NEXT_PUBLIC_
-// Usar el nombre simple — se lee en runtime correctamente.
+
+const ADMINS = ["jmrmarroquineria@gmail.com"];
+
 const MANTENIMIENTO = process.env.MODO_MANTENIMIENTO === "true";
 
-const RUTAS_EXCLUIDAS = [
+const RUTAS_EXCLUIDAS_MANT = [
   "/mantenimiento",
   "/api/",
   "/_next/",
@@ -13,17 +15,42 @@ const RUTAS_EXCLUIDAS = [
   "/pagos/",
 ];
 
-export function middleware(request) {
+export async function middleware(request) {
   const { pathname } = request.nextUrl;
 
-  if (!MANTENIMIENTO) return NextResponse.next();
+  // ── Protección del admin ──────────────────────────────────────
+  if (pathname.startsWith("/admin")) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          getAll: () => request.cookies.getAll(),
+          setAll: () => {},
+        },
+      }
+    );
 
-  const esExcluida = RUTAS_EXCLUIDAS.some((ruta) => pathname.startsWith(ruta));
-  if (esExcluida) return NextResponse.next();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  const url = request.nextUrl.clone();
-  url.pathname = "/mantenimiento";
-  return NextResponse.redirect(url);
+    if (!user || !ADMINS.includes(user.email)) {
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // ── Modo mantenimiento ────────────────────────────────────────
+  if (MANTENIMIENTO) {
+    const esExcluida = RUTAS_EXCLUIDAS_MANT.some(r => pathname.startsWith(r));
+    if (!esExcluida) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/mantenimiento";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {

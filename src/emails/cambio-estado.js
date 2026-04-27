@@ -20,16 +20,16 @@ const CONFIG_ESTADO = {
     siguientePaso: "Estamos preparando tu pedido. Te avisamos cuando esté listo.",
     preview: (num) => `Tu pedido #${num} fue confirmado — lo estamos preparando`,
   },
-  PREPARANDO: {
-    emoji:     "📦",
-    titulo:    "Preparando tu pedido",
-    subtitulo: "Manos a la obra",
-    color:     "#3b82f6",
-    mensaje:   (nombre, _pedido) =>
-      `Hola <strong>${nombre}</strong>, tu pedido está siendo preparado con cuidado.`,
-    siguientePaso: "En cuanto esté listo te avisamos para que lo retires o lo despachamos.",
-    preview: (num) => `Estamos preparando tu pedido #${num}`,
-  },
+  // PREPARANDO: {
+  //   emoji:     "📦",
+  //   titulo:    "Preparando tu pedido",
+  //   subtitulo: "Manos a la obra",
+  //   color:     "#3b82f6",
+  //   mensaje:   (nombre, _pedido) =>
+  //     `Hola <strong>${nombre}</strong>, tu pedido está siendo preparado con cuidado.`,
+  //   siguientePaso: "En cuanto esté listo te avisamos para que lo retires o lo despachamos.",
+  //   preview: (num) => `Estamos preparando tu pedido #${num}`,
+  // },
   ENVIADO: {
     emoji:     "🚚",
     titulo:    "¡Tu pedido está en camino!",

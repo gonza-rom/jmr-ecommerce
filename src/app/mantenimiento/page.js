@@ -20,11 +20,14 @@ const WhatsAppIcon = () => (
 );
 
 const PROGRESO = [
-  { label: "Catálogo online",         done: true  },
-  { label: "Carrito de compras",      done: true  },
-  { label: "Pagos con Mercado Pago",  done: false },
-  { label: "Envíos a todo el país",   done: false },
-  { label: "Cuenta y mis pedidos",    done: false },
+  { label: "Catálogo online",              done: true  },
+  { label: "Carrito de compras",           done: true  },
+  { label: "Checkout completo",            done: true  },
+  { label: "Cuenta y mis pedidos",         done: true  },
+  { label: "Pagos con Mercado Pago",       done: true  },
+  { label: "Envíos con OCA",               done: false },
+  { label: "Pagos con Fiserv",             done: false },
+  { label: "Emails transaccionales",       done: false },
 ];
 
 export default function MantenimientoPage() {
