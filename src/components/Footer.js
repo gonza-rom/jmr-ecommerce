@@ -66,7 +66,6 @@ export default function Footer() {
                 <MapPin className="w-5 h-5 flex-shrink-0 mt-0.5 text-jmr-green" />
                 <div className="text-sm">
                   <p>Rivadavia 564 - SFVC</p>
-                  <p>Av Pte Castillo 1165 - Valle Viejo</p>
                 </div>
               </li>
               <li>
