@@ -4,6 +4,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
 import { getImagenesValidas } from './ProductGallery';
+import { formatPrecio } from '@/lib/utils';
+
 
 export default function ProductCard({ producto, onAddToCart }) {
   const images = getImagenesValidas(producto);
@@ -65,7 +67,7 @@ export default function ProductCard({ producto, onAddToCart }) {
         <Link href={`/productos/${producto.id}`} className="jmr-card-name">
           {producto.nombre}
         </Link>
-        <p className="jmr-card-price">${producto.precio.toFixed(2)}</p>
+        <p className="jmr-card-price">{formatPrecio(producto.precio)}</p>
         <Link href={`/productos/${producto.id}`} className="jmr-card-detail-btn">
           Ver Detalles
         </Link>
