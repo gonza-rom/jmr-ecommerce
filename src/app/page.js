@@ -401,10 +401,10 @@ export default function Home() {
             <span className="hero-badge">Nueva Temporada</span>
             <h1 className="hero-title">
               JMR<br />
-              <span className="accent">PREMIUM</span>
+              <span className="accent">Marroquineria</span>
             </h1>
             <p className="hero-desc">
-              Explorá la curaduría exclusiva de mochilas técnicas y bolsos de viaje diseñados para el movimiento constante.
+              Explorá la gran variedad de mochilas, bolsos de viaje y valijas diseñados para el movimiento constante.
             </p>
             <div className="hero-btns">
               <Link href="/productos" className="btn-primary">
@@ -433,14 +433,30 @@ export default function Home() {
       {/* ── BRAND LOGOS ── */}
       <section className="brands-strip">
         <div className="brands-inner">
-          {['Wilson', 'Head', 'Samsonite', 'JanSport', 'Everlast', 'Pierre Cardin', 'Alpine Skate'].map((b) => (
-            <span key={b} style={{
-              fontWeight: 800,
-              fontSize: '1.1rem',
-              letterSpacing: '0.05em',
-              color: '#1a1c1c',
-              textTransform: 'uppercase'
-            }}>{b}</span>
+          {[
+            { nombre: 'Wilson',       archivo: 'wilson.png'       },
+            { nombre: 'Head',         archivo: 'head.png'         },
+            { nombre: 'Biwo',    archivo: 'biwo.png'    },
+            { nombre: 'Carey',     archivo: 'carey.png'     },
+            { nombre: 'Everlast',     archivo: 'everlast.png'     },
+            { nombre: 'Pierre Cardin',archivo: 'pierre-cardin.png'},
+            { nombre: 'Alpine Skate', archivo: 'alpine-skate.png' },
+            { nombre: 'Discovery',       archivo: 'Discovery.png'},
+            { nombre: 'Influencer',         archivo: 'influencer.png'},
+            { nombre: 'lsyd',    archivo: 'lsyd.png'    },
+            { nombre: 'ELF',     archivo: 'elf.png'     },
+            { nombre: 'Owen',     archivo: 'owen.png'     },
+            { nombre: 'amayra',archivo: 'amayra.png'},
+            { nombre: 'Reef', archivo: 'reef.png' },
+          ].map(({ nombre, archivo }) => (
+            <Image
+              key={nombre}
+              src={`/marcas/${archivo}`}
+              alt={nombre}
+              width={100}
+              height={40}
+              style={{ objectFit: 'contain', height: 36, width: 'auto' }}
+            />
           ))}
         </div>
       </section>
@@ -449,13 +465,13 @@ export default function Home() {
       <section className="category-section">
         <div className="category-inner">
           <div className="section-header">
-            <h2 className="section-title">Colecciones Curadas</h2>
+            <h2 className="section-title">Colecciones</h2>
             <div className="section-title-bar" />
           </div>
           <div className="category-grid">
             {/* Main — Mochilas */}
             <Link href="/productos?busqueda=mochila" className="cat-card cat-main" style={{ display: 'block' }}>
-              <Image src="/local-interior-1.jpg" alt="Mochilas" fill style={{ objectFit: 'cover' }} />
+              <Image src="/mochila.jpg" alt="Mochilas" fill style={{ objectFit: 'cover' }} />
               <div className="cat-overlay" />
               <div className="cat-label-main">
                 <h3>Mochilas</h3>
@@ -464,16 +480,16 @@ export default function Home() {
             </Link>
             {/* Valijas */}
             <Link href="/productos?busqueda=valija" className="cat-card cat-wide" style={{ display: 'block' }}>
-              <Image src="/local-interior-2.jpg" alt="Valijas" fill style={{ objectFit: 'cover' }} />
+              <Image src="/valija2.jpg" alt="Valijas" fill style={{ objectFit: 'cover' }} />
               <div className="cat-overlay" />
               <div className="cat-label">
-                <h3>Valijas</h3>
+                <h3>Valijas</h3>  
                 <span>Viajá con Estilo</span>
               </div>
             </Link>
             {/* Billeteras */}
             <Link href="/productos?busqueda=billetera" className="cat-card" style={{ display: 'block' }}>
-              <Image src="/local-interior-3.jpg" alt="Billeteras" fill style={{ objectFit: 'cover' }} />
+              <Image src="/billetera.webp" alt="Billeteras" fill style={{ objectFit: 'cover' }} />
               <div className="cat-overlay" />
               <div className="cat-label">
                 <h3>Billeteras</h3>
@@ -484,7 +500,7 @@ export default function Home() {
               <Image src="/local-fachada.jpg" alt="Accesorios" fill style={{ objectFit: 'cover' }} />
               <div className="cat-overlay" />
               <div className="cat-label">
-                <h3>Accesorios</h3>
+                <h3>Ver Productos</h3>
               </div>
             </Link>
           </div>
@@ -496,7 +512,7 @@ export default function Home() {
         <div className="featured-inner">
           <div className="featured-header">
             <div>
-              <h2 className="section-title">Trending Now</h2>
+              <h2 className="section-title">Productos Destacados</h2>
               <p>Lo más buscado de la semana</p>
             </div>
             <Link href="/productos" className="view-all">Ver Todos →</Link>
@@ -536,8 +552,8 @@ export default function Home() {
             <div className="trust-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
             </div>
-            <h3>12 Cuotas</h3>
-            <p>Pagá en 12 cuotas fijas con todas las tarjetas de crédito.</p>
+            <h3>6 Cuotas</h3>
+            <p>Pagá en 6 cuotas fijas con todas las tarjetas de crédito.</p>
           </div>
           <div className="trust-item">
             <div className="trust-icon">
@@ -545,18 +561,6 @@ export default function Home() {
             </div>
             <h3>Garantía Total</h3>
             <p>¿No es lo que esperabas? Tenés 30 días para devoluciones.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ── PAYMENT / NEWSLETTER ── */}
-      <section className="payment-section">
-        <div className="payment-inner">
-          <h2 className="payment-title">Keep in touch.</h2>
-          <p className="payment-desc">Unite a nuestro newsletter y recibí un 10% OFF en tu primera compra.</p>
-          <div className="payment-form">
-            <input className="payment-input" type="email" placeholder="Tu email" />
-            <button className="payment-btn">Suscribirme</button>
           </div>
         </div>
       </section>

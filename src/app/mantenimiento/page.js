@@ -25,9 +25,9 @@ const PROGRESO = [
   { label: "Checkout completo",            done: true  },
   { label: "Cuenta y mis pedidos",         done: true  },
   { label: "Pagos con Mercado Pago",       done: true  },
+  { label: "Emails transaccionales",       done: true },
   { label: "Envíos con OCA",               done: false },
   { label: "Pagos con Fiserv",             done: false },
-  { label: "Emails transaccionales",       done: false },
 ];
 
 export default function MantenimientoPage() {
