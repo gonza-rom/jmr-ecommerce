@@ -116,12 +116,15 @@ function ProductosContent() {
     setPrecioMax(500000);
   }, []);
   
-  useEffect(() => {
-    fetch('/api/categorias')
-      .then(r => r.json())
-      .then(data => setCategorias(Array.isArray(data) ? data : []))
-      .catch(console.error);
-  }, []);
+useEffect(() => {
+  fetch('/api/categorias')
+    .then(r => r.json())
+    .then(data => {
+      console.log('CATEGORIAS:', JSON.stringify(data.slice(0,3), null, 2));
+      setCategorias(Array.isArray(data) ? data : []);
+    })
+    .catch(console.error);
+}, []);
 
   const fetchProductos = useCallback(async () => {
     setLoading(true);
@@ -170,34 +173,65 @@ function ProductosContent() {
     (precioMin > catalogoMin || precioMax < catalogoMax);
   const hayFiltrosActivos = busquedaInput || categoriaSeleccionada || ordenar || precioFiltrado;
 
-  const SidebarFilters = () => (
+  const SidebarFilters = () => {
+  const [expandidas, setExpandidas] = useState({});
+  const toggle = (id) => setExpandidas(p => ({ ...p, [id]: !p[id] }));
+
+  return (
     <div>
-      {/* Categoría */}
       <div style={{ borderBottom: '1px solid #e8e8e8', paddingBottom: '1.5rem', marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <h3 style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#1a1c1c' }}>Categoría</h3>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
-            <input type="radio" name="categoria" checked={!categoriaSeleccionada} onChange={() => setCategoriaSeleccionada('')} style={{ accentColor: '#6DBE45' }} />
-            <span style={{ fontSize: '0.875rem', color: !categoriaSeleccionada ? '#1a1c1c' : '#5e5e5e', fontWeight: !categoriaSeleccionada ? 600 : 400 }}>
-              Todas las categorías
-            </span>
-          </label>
-          {categorias.map((cat) => (
-            <label key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
-              <input
-                type="radio" name="categoria"
-                checked={categoriaSeleccionada === cat.id.toString()}
-                onChange={() => setCategoriaSeleccionada(cat.id.toString())}
-                style={{ accentColor: '#6DBE45' }}
-              />
-              <span style={{ fontSize: '0.875rem', color: categoriaSeleccionada === cat.id.toString() ? '#1a1c1c' : '#5e5e5e', fontWeight: categoriaSeleccionada === cat.id.toString() ? 600 : 400 }}>
-                {cat.nombre}
-              </span>
-            </label>
-          ))}
-        </div>
+        <h3 style={{ fontSize: '0.75rem', fontWeight: 800, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#1a1c1c', marginBottom: '1rem' }}>
+          Categoría
+        </h3>
+
+        {/* Todas */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+          <input type="radio" name="categoria" checked={!categoriaSeleccionada} onChange={() => setCategoriaSeleccionada('')} style={{ accentColor: '#6DBE45' }} />
+          <span style={{ fontSize: '0.875rem', fontWeight: !categoriaSeleccionada ? 600 : 400, color: !categoriaSeleccionada ? '#1a1c1c' : '#5e5e5e' }}>
+            Todas
+          </span>
+        </label>
+
+        {categorias.map(padre => (
+          <div key={padre.id} style={{ marginBottom: '0.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1 }}>
+                <input
+                  type="radio" name="categoria"
+                  checked={categoriaSeleccionada === padre.id}
+                  onChange={() => setCategoriaSeleccionada(padre.id)}
+                  style={{ accentColor: '#6DBE45' }}
+                />
+                <span style={{ fontSize: '0.875rem', fontWeight: categoriaSeleccionada === padre.id ? 600 : 400, color: categoriaSeleccionada === padre.id ? '#1a1c1c' : '#5e5e5e' }}>
+                  {padre.nombre}
+                </span>
+              </label>
+              {padre.hijas?.length > 0 && (
+                <button onClick={() => toggle(padre.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', padding: '0 0.25rem', fontSize: '0.7rem' }}>
+                  {expandidas[padre.id] ? '▲' : '▼'}
+                </button>
+              )}
+            </div>
+
+            {padre.hijas?.length > 0 && expandidas[padre.id] && (
+              <div style={{ marginLeft: '1.75rem', marginTop: '0.35rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {padre.hijas.map(hija => (
+                  <label key={hija.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                    <input
+                      type="radio" name="categoria"
+                      checked={categoriaSeleccionada === hija.id}
+                      onChange={() => setCategoriaSeleccionada(hija.id)}
+                      style={{ accentColor: '#6DBE45' }}
+                    />
+                    <span style={{ fontSize: '0.8rem', fontWeight: categoriaSeleccionada === hija.id ? 600 : 400, color: categoriaSeleccionada === hija.id ? '#1a1c1c' : '#5e5e5e' }}>
+                      {hija.nombre}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Ordenar */}
@@ -215,14 +249,14 @@ function ProductosContent() {
               fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
               cursor: 'pointer',
               background: ordenar === op.value ? '#6DBE45' : '#e8e8e8',
-              color:      ordenar === op.value ? 'white'   : '#1a1c1c',
-              transition: 'all 0.15s',
+              color: ordenar === op.value ? 'white' : '#1a1c1c',
             }}>{op.label}</button>
           ))}
         </div>
       </div>
     </div>
   );
+};
 
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -308,7 +342,9 @@ function ProductosContent() {
             )}
             {categoriaSeleccionada && (
               <span className="active-filter-tag">
-                {categorias.find(c => c.id === parseInt(categoriaSeleccionada))?.nombre || 'Categoría'}
+                {categorias.find(c => c.id === categoriaSeleccionada)?.nombre ||
+                categorias.flatMap(c => c.hijas || []).find(h => h.id === categoriaSeleccionada)?.nombre ||
+                'Categoría'}
                 <button onClick={() => setCategoriaSeleccionada('')}><X size={12} /></button>
               </span>
             )}

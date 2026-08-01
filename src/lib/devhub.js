@@ -11,13 +11,12 @@ export async function getProductos({
   page = 1,
   pageSize = 20,
   ordenar = "nombre",
-  soloConStock = true,
+  soloConStock = false,
 } = {}) {
   const where = {
     tenantId: JMR_TENANT_ID,
     activo: true,
     visibleCatalogo: true,
-    ...(soloConStock && { stock: { gt: 0 } }),
     ...(categoriaId && { categoriaId }),
     ...(q.trim() && {
       OR: [
@@ -29,7 +28,7 @@ export async function getProductos({
     }),
   };
 
-  let orderBy = { nombre: "asc" };
+  let orderBy = [{ stock: 'desc' }, { nombre: 'asc' }];
   if (ordenar === "precio-asc")  orderBy = { precio: "asc" };
   if (ordenar === "precio-desc") orderBy = { precio: "desc" };
   if (ordenar === "recientes")   orderBy = { createdAt: "desc" };
@@ -127,23 +126,42 @@ export async function getCategorias() {
   const cats = await devhub.categoria.findMany({
     where: {
       tenantId: JMR_TENANT_ID,
-      productos: { some: { activo: true } },
+      padreId: null,
     },
     select: {
       id:          true,
       nombre:      true,
       descripcion: true,
-      _count: { select: { productos: { where: { activo: true } } } },
+      _count: { select: { productos: { where: { activo: true, visibleCatalogo: true } } } },
+      hijas: {
+        select: {
+          id:          true,
+          nombre:      true,
+          descripcion: true,
+          _count: { select: { productos: { where: { activo: true, visibleCatalogo: true } } } },
+        },
+        orderBy: { nombre: 'asc' },
+      },
     },
-    orderBy: { nombre: "asc" },
+    orderBy: { nombre: 'asc' },
   });
 
-  return cats.map((c) => ({
-    id:             c.id,
-    nombre:         c.nombre,
-    descripcion:    c.descripcion,
-    totalProductos: c._count.productos,
-  }));
+  return cats
+    .map((c) => ({
+      id:             c.id,
+      nombre:         c.nombre,
+      descripcion:    c.descripcion,
+      totalProductos: c._count.productos,
+      hijas: c.hijas
+        .filter(h => h._count.productos > 0)
+        .map((h) => ({
+          id:             h.id,
+          nombre:         h.nombre,
+          descripcion:    h.descripcion,
+          totalProductos: h._count.productos,
+        })),
+    }))
+    .filter(c => c.totalProductos > 0 || c.hijas.length > 0);
 }
 
 // ═══════════════════════════════════════════════════════════════

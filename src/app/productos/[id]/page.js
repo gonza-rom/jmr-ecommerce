@@ -3,17 +3,17 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShoppingBag, ArrowLeft, Package, Truck, Shield, Star, Plus, Minus, Share2, Heart } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, Package, Truck, Shield, Star, Plus, Minus, Share2, Heart, Loader2, Store, CreditCard, Clock, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '@/context/CartContext';
 import ProductGallery from '@/components/ProductGallery';
 import ProductCard from '@/components/ProductCard';
+import PromosPago from '@/components/PromosPagos';
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
   visible: (i = 0) => ({
-    opacity: 1,
-    y: 0,
+    opacity: 1, y: 0,
     transition: { duration: 0.4, delay: i * 0.08, ease: 'easeOut' },
   }),
 };
@@ -29,15 +29,12 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
-// ── Tab content ────────────────────────────────────────────────────────────
-const TABS = ['Detalles', 'Especificaciones', 'Garantía'];
+const TABS = ['Detalles', 'Garantía'];
 
 function ProductTabs({ producto }) {
   const [active, setActive] = useState(0);
-
   return (
     <div>
-      {/* Tab headers */}
       <div className="flex gap-6 border-b border-gray-100 mb-5">
         {TABS.map((tab, i) => (
           <button
@@ -54,7 +51,6 @@ function ProductTabs({ producto }) {
         ))}
       </div>
 
-      {/* Tab content */}
       {active === 0 && (
         <div className="space-y-4 text-sm text-gray-700 leading-relaxed">
           {producto.descripcion && <p>{producto.descripcion}</p>}
@@ -72,19 +68,6 @@ function ProductTabs({ producto }) {
       )}
 
       {active === 1 && (
-        <dl className="space-y-3 text-sm">
-          {producto.especificaciones?.map(({ label, valor }) => (
-            <div key={label} className="flex justify-between border-b border-gray-50 pb-2">
-              <dt className="text-gray-500">{label}</dt>
-              <dd className="font-medium text-gray-900">{valor}</dd>
-            </div>
-          )) ?? (
-            <p className="text-gray-500">Sin especificaciones disponibles.</p>
-          )}
-        </dl>
-      )}
-
-      {active === 2 && (
         <div className="space-y-3 text-sm text-gray-600 leading-relaxed">
           <p>Garantía de por vida en costuras y herrajes contra defectos de fabricación.</p>
           <p>Para hacer efectiva la garantía, contactanos por WhatsApp con tu comprobante de compra.</p>
@@ -94,76 +77,24 @@ function ProductTabs({ producto }) {
   );
 }
 
-// ── Bento de especificaciones técnicas ───────────────────────────────────
-function SpecsBento({ producto }) {
-  const dimensiones = producto.dimensiones || { alto: '—', ancho: '—', profundidad: '—' };
-  const capacidad = producto.capacidad || '—';
+// ── Helpers para relacionados ─────────────────────────────────────────────
 
-  return (
-    <section className="mt-20 mb-20">
-      <h2 className="text-3xl font-bold tracking-tight mb-8">Especificaciones técnicas</h2>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+// Tokeniza el nombre en palabras significativas (>3 chars)
+function tokenizar(nombre) {
+  return nombre
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // sacar acentos
+    .split(/[\s\-_/]+/)
+    .filter(w => w.length > 3);
+}
 
-        {/* Dimensiones */}
-        <div className="md:col-span-2 bg-gray-50 rounded-2xl p-7">
-          <Package className="w-7 h-7 text-jmr-green mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Dimensiones precisas</h3>
-          <p className="text-sm text-gray-500 mb-6">Diseñada para cumplir normativas de equipaje de cabina internacional.</p>
-          <div className="flex gap-8">
-            {[
-              { label: 'Alto', val: dimensiones.alto },
-              { label: 'Ancho', val: dimensiones.ancho },
-              { label: 'Profundidad', val: dimensiones.profundidad },
-            ].map(({ label, val }) => (
-              <div key={label}>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">{label}</p>
-                <p className="text-2xl font-bold">{val}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Capacidad */}
-        <div className="bg-gray-100 rounded-2xl p-7">
-          <Star className="w-7 h-7 text-jmr-green mb-4" />
-          <h3 className="text-lg font-semibold mb-1">Capacidad</h3>
-          <p className="text-5xl font-extrabold mt-3">
-            {capacidad} <span className="text-lg font-bold text-gray-400">L</span>
-          </p>
-          <p className="text-sm text-gray-500 mt-2">Ideal para viajes de 2 días</p>
-        </div>
-
-        {/* Garantía */}
-        <div className="bg-jmr-green rounded-2xl p-7 flex flex-col justify-between">
-          <Shield className="w-7 h-7 text-white mb-4" />
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Garantía de por vida</h3>
-            <p className="text-sm text-white/80">Cubrimos cualquier defecto de fabricación en costuras y herrajes.</p>
-          </div>
-        </div>
-
-        {/* Materiales */}
-        <div className="md:col-span-2 bg-white border border-gray-100 rounded-2xl p-7 flex items-center gap-6 shadow-sm">
-          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <Package className="w-8 h-8 text-jmr-green" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold mb-1">Materiales premium</h3>
-            <p className="text-sm text-gray-500">Cuero de curtiembre sustentable con terminación semi-mate resistente al agua y arañazos.</p>
-          </div>
-        </div>
-
-        {/* Tech */}
-        <div className="md:col-span-2 bg-gray-50 rounded-2xl p-7 flex items-center gap-6">
-          <Truck className="w-12 h-12 text-jmr-green flex-shrink-0" />
-          <div>
-            <h3 className="text-lg font-semibold mb-1">Protección tech</h3>
-            <p className="text-sm text-gray-500">Funda interior con suspensión antigolpes para laptops hasta 16" y tablet 11".</p>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
+// Calcula score de similitud entre dos productos
+function scoreSimilitud(producto, candidato) {
+  const tokensA = tokenizar(producto.nombre);
+  const tokensB = tokenizar(candidato.nombre);
+  const coincidencias = tokensA.filter(t => tokensB.includes(t)).length;
+  const mismaCategoria = producto.categoriaId === candidato.categoriaId ? 2 : 0;
+  return coincidencias + mismaCategoria;
 }
 
 // ── Page principal ─────────────────────────────────────────────────────────
@@ -195,7 +126,7 @@ export default function ProductoDetallePage() {
       }
       const data = await response.json();
       setProducto(data);
-      fetchRelacionados(data.categoriaId, data.id);
+      fetchRelacionados(data);
     } catch (err) {
       console.error('Error al cargar producto:', err);
       setError('error');
@@ -205,20 +136,49 @@ export default function ProductoDetallePage() {
     }
   };
 
-  const fetchRelacionados = async (categoriaId, productoId) => {
-    try {
-      const response = await fetch('/api/productos');
-      const data = await response.json();
-      // La API puede devolver un array directo o un objeto con los productos adentro
-      const todos = Array.isArray(data) ? data : (data.productos ?? data.data ?? []);
-      const relacionados = todos
-        .filter(p => p.categoriaId === categoriaId && p.id !== productoId)
-        .slice(0, 4);
-      setProductosRelacionados(relacionados);
-    } catch (err) {
-      console.error('Error al cargar relacionados:', err);
+  
+
+const fetchRelacionados = async (productoActual) => {
+  try {
+    // categoriaId puede venir como campo directo o dentro de categoria
+    const categoriaId = productoActual.categoriaId ?? productoActual.categoria?.id;
+
+    const stopwords = new Set(['para', 'con', 'sin', 'los', 'las', 'del', 'que', 'una', 'uno', 'mochila', 'bolso', 'valija', 'maletin', 'cartera']);
+    const keywords = productoActual.nombre
+      .toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .split(/[\s\-_/()]+/)
+      .filter(w => w.length > 2 && !stopwords.has(w));
+
+    // Usar la palabra más específica (más larga y no genérica)
+    const palabraClave = keywords.sort((a, b) => b.length - a.length)[0] || '';
+
+    const searchParams = new URLSearchParams({ pageSize: '20' });
+    if (palabraClave) searchParams.set('busqueda', palabraClave);
+    if (categoriaId) searchParams.set('categoria', categoriaId);
+
+    let res = await fetch(`/api/productos?${searchParams}`);
+    let data = await res.json();
+    let candidatos = Array.isArray(data) ? data : (data.productos ?? []);
+
+    // Fallback: si no hay suficientes, buscar solo por categoría
+    if (candidatos.filter(p => p.id !== productoActual.id).length < 4 && categoriaId) {
+      const fb = await fetch(`/api/productos?pageSize=20&categoria=${categoriaId}`);
+      const fbData = await fb.json();
+      const extra = Array.isArray(fbData) ? fbData : (fbData.productos ?? []);
+      const ids = new Set(candidatos.map(p => p.id));
+      candidatos = [...candidatos, ...extra.filter(p => !ids.has(p.id))];
     }
-  };
+
+    setProductosRelacionados(
+      candidatos.filter(p => p.id !== productoActual.id).slice(0, 4)
+    );
+  } catch (err) {
+    console.error('Error al cargar relacionados:', err);
+  }
+};
+
+  
 
   const handleAgregarCarrito = () => {
     if (!producto || cantidad <= 0) return;
@@ -251,7 +211,6 @@ export default function ProductoDetallePage() {
     }
   };
 
-  // ── Loading ──
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -263,7 +222,6 @@ export default function ProductoDetallePage() {
     );
   }
 
-  // ── Error ──
   if (error || !producto) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
@@ -305,10 +263,7 @@ export default function ProductoDetallePage() {
     <div className="min-h-screen bg-gray-50">
 
       {/* Breadcrumb */}
-      <motion.div
-        className="bg-white border-b border-gray-100"
-        initial="hidden" animate="visible" variants={fadeIn}
-      >
+      <motion.div className="bg-white border-b border-gray-100" initial="hidden" animate="visible" variants={fadeIn}>
         <div className="container mx-auto px-4 md:px-8 py-3">
           <div className="flex items-center gap-2 text-sm flex-wrap">
             <Link href="/" className="text-gray-400 hover:text-jmr-green transition-colors">Inicio</Link>
@@ -317,10 +272,7 @@ export default function ProductoDetallePage() {
             {producto.categoria && (
               <>
                 <span className="text-gray-300">/</span>
-                <Link
-                  href={`/productos?categoria=${producto.categoriaId}`}
-                  className="text-gray-400 hover:text-jmr-green transition-colors"
-                >
+                <Link href={`/productos?categoria=${producto.categoriaId}`} className="text-gray-400 hover:text-jmr-green transition-colors">
                   {producto.categoria.nombre}
                 </Link>
               </>
@@ -337,15 +289,13 @@ export default function ProductoDetallePage() {
         <motion.button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-gray-500 hover:text-jmr-green mb-6 transition-colors text-sm font-medium"
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3 }}
         >
           <ArrowLeft className="w-4 h-4" />
           Volver
         </motion.button>
 
-        {/* ── Grid principal ── */}
+        {/* Grid principal */}
         <div className="grid lg:grid-cols-2 gap-8 md:gap-14 mb-8 items-start">
 
           {/* Galería */}
@@ -364,7 +314,6 @@ export default function ProductoDetallePage() {
           <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={1}>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-9 lg:sticky lg:top-24">
 
-              {/* Categoría */}
               {producto.categoria && (
                 <Link
                   href={`/productos?categoria=${producto.categoriaId}`}
@@ -374,7 +323,6 @@ export default function ProductoDetallePage() {
                 </Link>
               )}
 
-              {/* Nombre + código */}
               <h1 className="text-3xl md:text-4xl font-bold tracking-tight leading-tight mb-1">
                 {producto.nombre}
               </h1>
@@ -388,33 +336,48 @@ export default function ProductoDetallePage() {
                   ${producto.precio.toLocaleString('es-AR')}
                 </span>
                 <span className="text-xs font-bold bg-green-50 text-jmr-green px-2.5 py-1 rounded-lg">
-                  12 cuotas sin interés
+                  6 cuotas sin interés
                 </span>
               </div>
 
               {/* Stock */}
-              <div className="flex items-center gap-2 text-sm font-semibold mb-3">
+              <div className="mb-3">
                 {producto.stock > 0 ? (
-                  <>
-                    <span className="text-jmr-green text-base">✓</span>
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <CheckCircle className="w-4 h-4 text-jmr-green flex-shrink-0" />
                     <span className="text-jmr-green">In stock — {producto.stock} unidades disponibles</span>
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <span className="text-red-500 text-base">✕</span>
-                    <span className="text-red-500">Sin stock</span>
-                  </>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <span className="text-sm font-bold text-amber-700">Sin stock momentáneo</span>
+                    </div>
+                    <p className="text-xs text-amber-600 leading-relaxed mb-3">
+                      Este producto no está disponible en este momento, pero puede que llegue próximamente.
+                      Consultanos por WhatsApp y te avisamos cuando vuelva a estar disponible.
+                    </p>
+                    <a
+                      href={`https://wa.me/543834927252?text=${encodeURIComponent(
+                        `Hola! Me interesa el producto *${producto.nombre}* pero está sin stock.\n\n` +
+                        `¿Saben si va a volver a haber disponibilidad?\n\n` +
+                        `Link: ${typeof window !== 'undefined' ? window.location.href : ''}`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 bg-[#25D366] hover:bg-[#20BA5A] text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-colors no-underline"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                      </svg>
+                      Avisame cuando llegue
+                    </a>
+                  </div>
                 )}
               </div>
 
               {/* Envío */}
-              <div className="flex items-start gap-3 bg-gray-50 rounded-xl p-4 mb-6">
-                <Truck className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-sm font-semibold">Envío gratis a todo el país</p>
-                  <p className="text-xs text-gray-500 mt-0.5">Recíbelo entre el 15 y 18 de Mayo</p>
-                </div>
-              </div>
+              <EnvioInfo />
 
               {/* Cantidad */}
               {producto.stock > 0 && (
@@ -427,7 +390,6 @@ export default function ProductoDetallePage() {
                       <button
                         onClick={() => setCantidad(Math.max(1, cantidad - 1))}
                         className="w-10 h-11 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600"
-                        aria-label="Disminuir"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -445,14 +407,12 @@ export default function ProductoDetallePage() {
                       <button
                         onClick={() => setCantidad(Math.min(producto.stock, cantidad + 1))}
                         className="w-10 h-11 flex items-center justify-center hover:bg-gray-50 transition-colors text-gray-600"
-                        aria-label="Aumentar"
                       >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>
                     <span className="text-sm text-gray-500">
-                      Total:{' '}
-                      <strong className="text-jmr-green text-lg">${total}</strong>
+                      Total: <strong className="text-jmr-green text-lg">${total}</strong>
                     </span>
                   </div>
                 </div>
@@ -475,9 +435,7 @@ export default function ProductoDetallePage() {
                       <AnimatePresence mode="wait">
                         <motion.span
                           key={agregado ? 'ok' : 'add'}
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -5 }}
+                          initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }}
                           transition={{ duration: 0.2 }}
                         >
                           {agregado ? '¡Agregado al carrito!' : 'Añadir al carrito'}
@@ -502,7 +460,6 @@ export default function ProductoDetallePage() {
                             ? 'bg-red-50 border-red-200 text-red-500'
                             : 'bg-white border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200'
                         }`}
-                        aria-label="Favorito"
                       >
                         <Heart className={`w-5 h-5 ${favorito ? 'fill-red-500' : ''}`} />
                       </button>
@@ -512,7 +469,7 @@ export default function ProductoDetallePage() {
                   <motion.button
                     onClick={handleComprarWhatsApp}
                     whileTap={{ scale: 0.97 }}
-                    className="w-full bg-gray-600 hover:bg-gray-700 text-white py-4 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
+                    className="w-full bg-gray-300 text-gray-500 py-4 rounded-xl font-semibold cursor-not-allowed flex items-center justify-center gap-2 shadow-none"
                   >
                     <WhatsAppIcon />
                     Consultar disponibilidad
@@ -522,6 +479,11 @@ export default function ProductoDetallePage() {
 
               {/* Tabs */}
               <ProductTabs producto={producto} />
+
+              {/* Promos y formas de pago */}
+              <div className="mt-6">
+                <PromosPago />
+              </div>
 
               {/* Trust */}
               <div className="mt-7 pt-6 border-t border-gray-100 space-y-3">
@@ -540,27 +502,24 @@ export default function ProductoDetallePage() {
           </motion.div>
         </div>
 
-        {/* Bento specs */}
-        <SpecsBento producto={producto} />
-
         {/* Productos relacionados */}
         {productosRelacionados.length > 0 && (
           <motion.section
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: '-80px' }}
-            variants={fadeIn}
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-80px' }} variants={fadeIn}
             className="mb-12"
           >
             <div className="flex items-end justify-between mb-8">
               <div>
-                <h2 className="text-3xl font-bold tracking-tight mb-1">Completa tu set</h2>
-                <p className="text-gray-500 text-sm">Productos que combinan a la perfección.</p>
+                <h2 className="text-3xl font-bold tracking-tight mb-1">Productos relacionados</h2>
+                <p className="text-gray-500 text-sm">
+                  Más opciones similares a{' '}
+                  <span className="font-semibold text-gray-700">{producto.nombre}</span>
+                </p>
               </div>
               {producto.categoria && (
                 <Link
                   href={`/productos?categoria=${producto.categoriaId}`}
-                  className="text-sm text-jmr-green hover:underline font-semibold flex items-center gap-1"
+                  className="text-sm text-jmr-green hover:underline font-semibold"
                 >
                   Ver todo →
                 </Link>
@@ -571,11 +530,8 @@ export default function ProductoDetallePage() {
               {productosRelacionados.map((p, i) => (
                 <motion.div
                   key={p.id}
-                  variants={fadeUp}
-                  custom={i}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true }}
+                  variants={fadeUp} custom={i}
+                  initial="hidden" whileInView="visible" viewport={{ once: true }}
                 >
                   <ProductCard producto={p} onAddToCart={addToCart} />
                 </motion.div>
@@ -584,6 +540,123 @@ export default function ProductoDetallePage() {
           </motion.section>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Componente de envío (preparado para OCA) ───────────────────────────────
+function EnvioInfo() {
+  const [cp, setCp] = useState('');
+  const [tarifando, setTarifando] = useState(false);
+  const [tarifas, setTarifas] = useState(null);
+  const [cpActivo, setCpActivo] = useState('');
+  const [error, setError] = useState('');
+
+  const fmt = (n) => new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: 'ARS', maximumFractionDigits: 0,
+  }).format(n ?? 0);
+
+  const calcular = async () => {
+    if (!cp || cp.length < 4) return;
+    setTarifando(true); setError(''); setTarifas(null);
+    try {
+      const [resSap, resSas] = await Promise.allSettled([
+        fetch('/api/oca/tarifar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cpDestino: cp }),
+        }).then(r => r.json()),
+        fetch('/api/oca/tarifar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cpDestino: cp, operativa: '466988' }),
+        }).then(r => r.json()),
+      ]);
+
+      const sap = resSap.status === 'fulfilled' && resSap.value.ok ? resSap.value.tarifa : resSap.value?.fallback ?? null;
+      const sas = resSas.status === 'fulfilled' && resSas.value.ok ? resSas.value.tarifa : resSas.value?.fallback ?? null;
+
+      if (!sap && !sas) { setError('No se pudo calcular para ese CP.'); return; }
+      setTarifas({ sap, sas });
+      setCpActivo(cp);
+    } catch {
+      setError('Error de conexión. Intentá de nuevo.');
+    } finally {
+      setTarifando(false);
+    }
+  };
+
+  return (
+    <div className="bg-gray-50 rounded-xl p-4 mb-6 text-sm">
+      <div className="flex items-center gap-2 font-semibold mb-3">
+        <Truck className="w-4 h-4 text-gray-500" />
+        Calcular envío
+      </div>
+
+      {!cpActivo ? (
+        <>
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={cp}
+              onChange={e => setCp(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              onKeyDown={e => e.key === 'Enter' && calcular()}
+              placeholder="Código postal"
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-jmr-green bg-white"
+            />
+            <button
+              onClick={calcular}
+              disabled={tarifando || cp.length < 4}
+              className="text-sm font-bold px-3 py-2 bg-jmr-green text-white rounded-lg disabled:opacity-50 hover:bg-jmr-green-dark transition-colors flex items-center gap-1"
+            >
+              {tarifando ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Calcular'}
+            </button>
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <a href="https://www.correoargentino.com.ar/formularios/cpa" target="_blank" rel="noreferrer"
+            className="text-xs text-gray-400 underline">No sé mi código postal</a>
+        </>
+      ) : (
+        <div className="space-y-2">
+          {tarifas?.sap && (
+            <div className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Truck className="w-3.5 h-3.5 text-gray-400" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">Envío a domicilio</p>
+                  <p className="text-[10px] text-gray-400">{tarifas.sap.diasHabiles} días hábiles · OCA</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-jmr-green-dark">{fmt(tarifas.sap.precio)}</span>
+            </div>
+          )}
+          {tarifas?.sas && (
+            <div className="flex items-center justify-between p-2.5 bg-white border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-2">
+                <Package className="w-3.5 h-3.5 text-gray-400" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-800">Retiro en sucursal OCA</p>
+                  <p className="text-[10px] text-gray-400">{tarifas.sas.diasHabiles} días hábiles</p>
+                </div>
+              </div>
+              <span className="text-xs font-bold text-jmr-green-dark">{fmt(tarifas.sas.precio)}</span>
+            </div>
+          )}
+          <div className="flex items-center justify-between p-2.5 bg-green-50 border border-green-100 rounded-lg">
+            <div className="flex items-center gap-2">
+              <Store className="w-3.5 h-3.5 text-jmr-green" />
+              <div>
+                <p className="text-xs font-semibold text-gray-800">Retiro en local JMR</p>
+                <p className="text-[10px] text-gray-400">Rivadavia 564 o Valle Viejo</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-jmr-green">Gratis</span>
+          </div>
+          <p className="text-[10px] text-gray-400 text-center">* Precios OCA para CP {cpActivo}</p>
+          <button onClick={() => { setTarifas(null); setCpActivo(''); setCp(''); }}
+            className="text-xs text-gray-400 underline">Cambiar CP</button>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { getCategorias } from "@/lib/devhub";
 
 export const dynamic = 'force-dynamic';
 
+
 export async function GET() {
   try {
     const categorias = await getCategorias();
@@ -14,3 +15,4 @@ export async function GET() {
     return Response.json([]);
   }
 }
+
