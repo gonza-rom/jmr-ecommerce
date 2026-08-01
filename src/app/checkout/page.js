@@ -1,5 +1,11 @@
 'use client';
 // src/app/checkout/page.js
+// Igual al original pero con tarifación OCA real en vez de calcularEnvio() local.
+// Cambios:
+//   1. Se elimina calcularEnvio() — reemplazada por llamada a /api/oca/tarifar
+//   2. Se agrega estado `tarifandoOca` para mostrar spinner mientras calcula
+//   3. El useEffect que calcula envío ahora llama a la API OCA
+//   4. Peso y dimensiones fijos (Opción A): 0.5kg, 20x30x10cm
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -29,32 +35,49 @@ const PROVINCIAS_AR = [
   'Santa Fe', 'Santiago del Estero', 'Tierra del Fuego', 'Tucumán',
 ];
 
-function calcularEnvio(provincia, subtotal) {
-  const LOCAL     = ['Catamarca'];
-  const NOA       = ['Tucumán', 'Jujuy', 'Salta', 'La Rioja', 'Santiago del Estero'];
-  const CUYO      = ['Mendoza', 'San Juan', 'San Luis'];
-  const LITORAL   = ['Corrientes', 'Misiones', 'Formosa', 'Chaco', 'Entre Ríos'];
-  const PATAGONIA = ['Neuquén', 'Río Negro', 'Chubut', 'Santa Cruz', 'Tierra del Fuego'];
-  const GRATIS_DESDE = 150000;
+// ── CP por provincia (para tarifar sin que el usuario lo ingrese) ─────────
+const CP_POR_PROVINCIA = {
+  'Buenos Aires':      '1000',
+  'CABA':              '1000',
+  'Catamarca':         '4700',
+  'Chaco':             '3500',
+  'Chubut':            '9000',
+  'Córdoba':           '5000',
+  'Corrientes':        '3400',
+  'Entre Ríos':        '3100',
+  'Formosa':           '3600',
+  'Jujuy':             '4600',
+  'La Pampa':          '6300',
+  'La Rioja':          '5300',
+  'Mendoza':           '5500',
+  'Misiones':          '3300',
+  'Neuquén':           '8300',
+  'Río Negro':         '8400',
+  'Salta':             '4400',
+  'San Juan':          '5400',
+  'San Luis':          '5700',
+  'Santa Cruz':        '9400',
+  'Santa Fe':          '3000',
+  'Santiago del Estero':'4200',
+  'Tierra del Fuego':  '9410',
+  'Tucumán':           '4000',
+};
 
-  let precio = 0, zona = '', dias = [3, 7];
-  if (LOCAL.includes(provincia))        { precio = 2500; zona = 'Catamarca';  dias = [1, 2]; }
-  else if (NOA.includes(provincia))     { precio = 4500; zona = 'NOA';        dias = [2, 4]; }
-  else if (CUYO.includes(provincia))    { precio = 5500; zona = 'Cuyo';       dias = [3, 5]; }
-  else if (LITORAL.includes(provincia)) { precio = 5000; zona = 'Litoral';    dias = [3, 5]; }
-  else if (PATAGONIA.includes(provincia)){ precio = 7500; zona = 'Patagonia'; dias = [5, 8]; }
-  else                                  { precio = 5000; zona = provincia;    dias = [3, 7]; }
-
-  const gratis = subtotal >= GRATIS_DESDE;
-  return { disponible: true, gratis, precio: gratis ? 0 : precio, zona: { nombre: zona }, diasMin: dias[0], diasMax: dias[1] };
-}
+// Parámetros fijos del paquete — Opción A
+const PAQUETE_DEFAULT = {
+  pesoTotal:      0.5,
+  alto:           10,
+  ancho:          20,
+  largo:          30,
+  get volumen()   { return this.alto * this.ancho * this.largo; }, // 6000 cm³
+};
 
 const fmt = (n) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', minimumFractionDigits: 0 }).format(n ?? 0);
 
 const GREEN      = '#6DBE45';
 const GREEN_DARK = '#286c00';
 
-// ── Barra de pasos ────────────────────────────────────────────────────────────
+// ── Barra de pasos ─────────────────────────────────────────────────────────
 function StepBar({ paso }) {
   const pasos = ['Contacto', 'Entrega', 'Pago'];
   return (
@@ -89,8 +112,8 @@ function StepBar({ paso }) {
   );
 }
 
-// ── Resumen lateral ───────────────────────────────────────────────────────────
-function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvio }) {
+// ── Resumen lateral ────────────────────────────────────────────────────────
+function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvio, tarifandoOca }) {
   const [mostrarCupon, setMostrarCupon] = useState(false);
   const [cuponInput,   setCuponInput]   = useState('');
 
@@ -147,10 +170,10 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
           <span>Envío</span>
           <span style={{ color: costoEnvio === 0 && tipoEnvio ? GREEN_DARK : '#6b7280', fontWeight: costoEnvio === 0 && tipoEnvio ? 600 : 400 }}>
-            {!tipoEnvio ? 'Calculando...' :
+            {!tipoEnvio ? '—' :
              tipoEnvio.startsWith('retiro') ? 'Retiro gratis' :
-             infoEnvio?.gratis ? '¡Gratis!' :
-             infoEnvio?.disponible ? fmt(infoEnvio.precio) : 'A calcular'}
+             tarifandoOca ? 'Calculando...' :
+             infoEnvio?.precio != null ? fmt(infoEnvio.precio) : 'Seleccioná provincia'}
           </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: '#111', paddingTop: 8, borderTop: '1px solid #e5e7eb', marginTop: 4 }}>
@@ -162,20 +185,21 @@ function ResumenLateral({ cart, subtotal, costoEnvio, total, tipoEnvio, infoEnvi
   );
 }
 
-// ── Checkout principal ────────────────────────────────────────────────────────
+// ── Checkout principal ─────────────────────────────────────────────────────
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, clearCart } = useCart();
   const pedidoConfirmado = useRef(false);
 
-  const [paso,       setPaso]       = useState(1);
-  const [loading,    setLoading]    = useState(false);
-  const [error,      setError]      = useState('');
-  const [infoEnvio,  setInfoEnvio]  = useState(null);
-  const [tipoEnvio,  setTipoEnvio]  = useState('');
-  const [metodoPago, setMetodoPago] = useState('');
-  const [errores,    setErrores]    = useState({});
-  const [copiado,    setCopiado]    = useState('');
+  const [paso,         setPaso]         = useState(1);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
+  const [infoEnvio,    setInfoEnvio]    = useState(null);   // { precio, diasHabiles }
+  const [tarifandoOca, setTarifandoOca] = useState(false);
+  const [tipoEnvio,    setTipoEnvio]    = useState('');
+  const [metodoPago,   setMetodoPago]   = useState('');
+  const [errores,      setErrores]      = useState({});
+  const [copiado,      setCopiado]      = useState('');
   const [usuarioLogueado, setUsuarioLogueado] = useState(null);
 
   const [form, setForm] = useState({
@@ -185,7 +209,7 @@ export default function CheckoutPage() {
     notas: '',
   });
 
-  // ── Pre-completar datos del usuario logueado ──────────────────────────────
+  // Pre-completar datos del usuario logueado
   useEffect(() => {
     try {
       const supabase = createBrowserClient(
@@ -195,7 +219,6 @@ export default function CheckoutPage() {
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (!user) return;
         setUsuarioLogueado(user);
-        // Pre-completar email y nombre si el form está vacío
         setForm(prev => ({
           ...prev,
           email:  prev.email  || user.email  || '',
@@ -209,16 +232,64 @@ export default function CheckoutPage() {
     if (cart.length === 0 && !pedidoConfirmado.current) router.replace('/productos');
   }, [cart, router]);
 
+  // ── Tarifar OCA cuando cambia provincia o tipo de envío ──────────────────
   useEffect(() => {
-    if (tipoEnvio === 'envio' && form.provincia) {
-      setInfoEnvio(calcularEnvio(form.provincia, subtotal));
-    } else {
+    if (tipoEnvio !== 'envio' || !form.codigoPostal.trim()) {
       setInfoEnvio(null);
+      return;
     }
-  }, [form.provincia, tipoEnvio]);
+
+    const cpDestino = form.codigoPostal.trim();
+
+    let cancelado = false;
+    setTarifandoOca(true);
+    setInfoEnvio(null);
+
+    fetch('/api/oca/tarifar', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        codigoPostalDestino: cpDestino,
+        pesoTotal:           PAQUETE_DEFAULT.pesoTotal,
+        volumen:             PAQUETE_DEFAULT.volumen,
+        valorDeclarado:      subtotal,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelado) return;
+        if (data.ok && data.tarifa) {
+          setInfoEnvio({
+            precio:      data.tarifa.precio,
+            diasHabiles: data.tarifa.diasHabiles,
+            zona:        { nombre: form.provincia },
+            disponible:  true,
+            gratis:      false,
+          });
+        } else {
+          // Fallback si OCA falla
+          const fallback = data.fallback ?? { precio: 5000, diasHabiles: 5 };
+          setInfoEnvio({
+            precio:      fallback.precio,
+            diasHabiles: fallback.diasHabiles,
+            zona:        { nombre: form.provincia },
+            disponible:  true,
+            gratis:      false,
+            esFallback:  true,
+          });
+        }
+      })
+      .catch(() => {
+        if (cancelado) return;
+        setInfoEnvio({ precio: 5000, diasHabiles: 5, zona: { nombre: form.provincia }, disponible: true, gratis: false, esFallback: true });
+      })
+      .finally(() => { if (!cancelado) setTarifandoOca(false); });
+
+    return () => { cancelado = true; };
+  }, [form.provincia, form.codigoPostal, tipoEnvio]);
 
   const subtotal   = useMemo(() => cart.reduce((acc, item) => acc + item.precio * item.cantidad, 0), [cart]);
-  const costoEnvio = tipoEnvio.startsWith('retiro') ? 0 : (infoEnvio?.disponible ? infoEnvio.precio : 0);
+  const costoEnvio = tipoEnvio.startsWith('retiro') ? 0 : (infoEnvio?.precio ?? 0);
   const total      = subtotal + costoEnvio;
 
   function copiar(campo) {
@@ -310,7 +381,6 @@ export default function CheckoutPage() {
       }
 
       clearCart();
-      // Pasar email a la página de éxito para el banner de registro
       const emailParam = usuarioLogueado ? '' : `&email=${encodeURIComponent(form.email.trim())}`;
       router.push(`/checkout/exito?pedido=${data.pedidoId}&metodo=${metodoPago}${emailParam}`);
 
@@ -376,12 +446,11 @@ export default function CheckoutPage() {
           <div>
             <StepBar paso={paso} />
 
-            {/* PASO 1: Contacto */}
+            {/* PASO 1 */}
             {paso === 1 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
                 <h2 style={{ fontSize: 15, fontWeight: 700, color: '#111', margin: 0 }}>Datos de contacto</h2>
 
-                {/* Badge usuario logueado */}
                 {usuarioLogueado && (
                   <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <User size={14} color="#6DBE45" />
@@ -393,13 +462,9 @@ export default function CheckoutPage() {
 
                 <div>
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>E-mail *</label>
-                  <input
-                    type="email" value={form.email}
-                    onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
-                    placeholder="tu@email.com"
-                    readOnly={!!usuarioLogueado}
-                    style={{ ...inp(errores.email), background: usuarioLogueado ? '#f9fafb' : 'white', color: usuarioLogueado ? '#6b7280' : '#111' }}
-                  />
+                  <input type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))}
+                    placeholder="tu@email.com" readOnly={!!usuarioLogueado}
+                    style={{ ...inp(errores.email), background: usuarioLogueado ? '#f9fafb' : 'white', color: usuarioLogueado ? '#6b7280' : '#111' }} />
                   {errores.email && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.email}</p>}
                 </div>
 
@@ -417,7 +482,7 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* PASO 2: Entrega */}
+            {/* PASO 2 */}
             {paso === 2 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -439,14 +504,12 @@ export default function CheckoutPage() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nombre completo *</label>
-                    <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))}
-                      placeholder="Juan Pérez" style={inp(errores.nombre)} />
+                    <input value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} placeholder="Juan Pérez" style={inp(errores.nombre)} />
                     {errores.nombre && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.nombre}</p>}
                   </div>
                   <div>
                     <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teléfono / WhatsApp *</label>
-                    <input value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))}
-                      placeholder="+54 9 383 000-0000" style={inp(errores.telefono)} />
+                    <input value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))} placeholder="+54 9 383 000-0000" style={inp(errores.telefono)} />
                     {errores.telefono && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.telefono}</p>}
                   </div>
                 </div>
@@ -457,9 +520,7 @@ export default function CheckoutPage() {
                   {errores.tipoEnvio && <p style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{errores.tipoEnvio}</p>}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {[
-                      { value: 'retiro-rivadavia',  label: 'Retirar en Rivadavia 564', desc: 'San Fernando · Lun–Vie 8:30–13 / 17–21:30 · Sáb 9–13 / 17–21' },
-                      { value: 'retiro-valleviejo', label: 'Retirar en Valle Viejo',   desc: 'Av. Pte. Castillo 1165 · Mismo horario' },
-                      { value: 'envio',             label: 'Envío a domicilio',        desc: 'Se calcula según tu provincia' },
+                      { value: 'retiro-rivadavia',  label: 'Retirar en Rivadavia 564', desc: 'San Fernando · Lun–Vie 8:30–13 / 17–21:30 · Sáb 9–13 / 17–21' },                      { value: 'envio',             label: 'Envío a domicilio (OCA)',  desc: 'Calculamos el costo según tu provincia' },
                     ].map(({ value, label, desc }) => {
                       const esRetiro = value.startsWith('retiro');
                       return (
@@ -478,9 +539,13 @@ export default function CheckoutPage() {
                                 <span style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{label}</span>
                               </div>
                               {esRetiro && <span style={{ fontSize: 13, fontWeight: 700, color: GREEN_DARK }}>Gratis</span>}
-                              {value === 'envio' && infoEnvio?.disponible && (
+                              {value === 'envio' && tarifandoOca && (
+                                <Loader2 size={13} color="#9ca3af" style={{ animation: 'spin 1s linear infinite' }} />
+                              )}
+                              {value === 'envio' && !tarifandoOca && infoEnvio?.precio != null && (
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#111' }}>
-                                  {infoEnvio.gratis ? 'Gratis' : fmt(infoEnvio.precio)}
+                                  {fmt(infoEnvio.precio)}
+                                  {infoEnvio.esFallback && <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 400 }}> (est.)</span>}
                                 </span>
                               )}
                             </div>
@@ -526,14 +591,36 @@ export default function CheckoutPage() {
                         {errores.provincia && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{errores.provincia}</p>}
                       </div>
                     </div>
-                    {infoEnvio && (
-                      <div style={{ borderRadius: 10, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 8, background: infoEnvio.gratis ? '#f0fdf4' : '#eff6ff', border: `1px solid ${infoEnvio.gratis ? '#bbf7d0' : '#bfdbfe'}` }}>
-                        <span style={{ fontSize: 16 }}>{infoEnvio.gratis ? '🎉' : '🚚'}</span>
+
+                    {/* Banner resultado OCA */}
+                    {tipoEnvio === 'envio' && form.provincia && (
+                      <div style={{
+                        borderRadius: 10, padding: '12px 14px',
+                        display: 'flex', alignItems: 'flex-start', gap: 8,
+                        background: tarifandoOca ? '#f9fafb' : infoEnvio?.esFallback ? '#fef3c7' : '#eff6ff',
+                        border: `1px solid ${tarifandoOca ? '#e5e7eb' : infoEnvio?.esFallback ? '#fde68a' : '#bfdbfe'}`,
+                      }}>
+                        {tarifandoOca
+                          ? <Loader2 size={14} color="#9ca3af" style={{ animation: 'spin 1s linear infinite', marginTop: 2 }} />
+                          : <span style={{ fontSize: 16 }}>🚚</span>
+                        }
                         <div>
-                          <p style={{ fontSize: 13, fontWeight: 600, color: infoEnvio.gratis ? '#15803d' : '#1d4ed8', margin: 0 }}>
-                            {infoEnvio.gratis ? `¡Envío gratis a ${infoEnvio.zona?.nombre}!` : `Envío a ${infoEnvio.zona?.nombre}: ${fmt(infoEnvio.precio)}`}
-                          </p>
-                          <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>{infoEnvio.diasMin}–{infoEnvio.diasMax} días hábiles</p>
+                          {tarifandoOca ? (
+                            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Calculando tarifa OCA...</p>
+                          ) : infoEnvio ? (
+                            <>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: infoEnvio.esFallback ? '#92400e' : '#1d4ed8', margin: 0 }}>
+                                {infoEnvio.esFallback
+                                  ? `Envío estimado a ${form.provincia}: ${fmt(infoEnvio.precio)}`
+                                  : `Envío OCA a ${form.provincia}: ${fmt(infoEnvio.precio)}`
+                                }
+                              </p>
+                              <p style={{ fontSize: 11, color: '#6b7280', margin: '2px 0 0' }}>
+                                {infoEnvio.diasHabiles} días hábiles
+                                {infoEnvio.esFallback && ' · Precio estimado, puede variar'}
+                              </p>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )}
@@ -551,7 +638,7 @@ export default function CheckoutPage() {
               </div>
             )}
 
-            {/* PASO 3: Pago */}
+            {/* PASO 3 — igual al original */}
             {paso === 3 && (
               <div style={{ background: 'white', borderRadius: 16, border: '1px solid #e5e7eb', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
@@ -655,7 +742,11 @@ export default function CheckoutPage() {
 
           {/* Resumen lateral */}
           <div style={{ position: 'sticky', top: 24, alignSelf: 'start' }}>
-            <ResumenLateral cart={cart} subtotal={subtotal} costoEnvio={costoEnvio} total={total} tipoEnvio={tipoEnvio} infoEnvio={infoEnvio} />
+            <ResumenLateral
+              cart={cart} subtotal={subtotal} costoEnvio={costoEnvio}
+              total={total} tipoEnvio={tipoEnvio} infoEnvio={infoEnvio}
+              tarifandoOca={tarifandoOca}
+            />
           </div>
         </div>
       </div>

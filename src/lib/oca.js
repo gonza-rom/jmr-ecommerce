@@ -1,280 +1,346 @@
 // src/lib/oca.js
-// Integración con OCA e-Pak / API REST
+// Integración OCA ePak — API oficial webservice.oca.com.ar
 //
 // Variables de entorno requeridas:
-//   OCA_USUARIO         = email de cuenta OCA
-//   OCA_PASSWORD        = contraseña OCA
-//   OCA_CUIT_REMITENTE  = CUIT de tu empresa sin guiones (ej: "20123456789")
-//   OCA_NUMERO_CUENTA   = número de cuenta OCA asignado al dar de alta
-//   OCA_OPERATIVA_ENVIO = código de operativa para "puerta a puerta" (ej: "77000")
-//   OCA_OPERATIVA_SUC   = código de operativa "puerta a sucursal" (opcional)
-//   OCA_CENTRO_IMPOS    = centro de imposición (sucursal desde donde despachás)
-//
-// Docs:
-//   https://www.oca.com.ar/epak/
+//   OCA_USUARIO          = email de cuenta ePak  (jmrmarroquineria@gmail.com)
+//   OCA_PASSWORD         = contraseña ePak
+//   OCA_CUIT_REMITENTE   = CUIT con guiones      (ej: 20-12345678-9)
+//   OCA_NUMERO_CUENTA    = nro de cuenta OCA      (197500/000)
+//   OCA_OPERATIVA_SAP    = operativa SaP          (466987)
+//   OCA_OPERATIVA_SAS    = operativa SaS          (466988)
+//   OCA_CENTRO_IMPOS     = sigla centro imposición (CAT)
+//   OCA_CP_ORIGEN        = CP de despacho         (4700)
 
-const OCA_BASE_URL = "https://operaciones.oca.com.ar/epak";
+const BASE = 'https://webservice.oca.com.ar/ePak_tracking/Oep_TrackEPak.asmx'
 
-// ─── Utilidades ────────────────────────────────────────────────────────────────
-
-function getCredenciales() {
-  const usuario  = process.env.OCA_USUARIO;
-  const password = process.env.OCA_PASSWORD;
-  const cuit     = process.env.OCA_CUIT_REMITENTE;
-  const cuenta   = process.env.OCA_NUMERO_CUENTA;
-
-  if (!usuario || !password || !cuit || !cuenta) {
-    throw new Error(
-      "Faltan variables de entorno OCA: OCA_USUARIO, OCA_PASSWORD, OCA_CUIT_REMITENTE, OCA_NUMERO_CUENTA"
-    );
-  }
-  return { usuario, password, cuit, cuenta };
+// Volumen en m³ desde cm: (alto × ancho × largo) / 1_000_000
+function cmToM3(alto, ancho, largo) {
+  return (alto * ancho * largo) / 1_000_000
 }
 
-// OCA usa Basic Auth en sus endpoints REST
-function authHeader() {
-  const { usuario, password } = getCredenciales();
-  const encoded = Buffer.from(`${usuario}:${password}`).toString("base64");
-  return { Authorization: `Basic ${encoded}` };
-}
-
-// ─── 1. Tarifar envío ──────────────────────────────────────────────────────────
+// ── 1. COTIZAR ENVÍO ──────────────────────────────────────────────────────────
 /**
- * Calcula el costo de envío según OCA.
+ * Cotiza un envío OCA ePak.
+ * Devuelve precio (ARS) y días hábiles estimados.
  *
  * @param {object} params
- * @param {string} params.codigoPostalOrigen  - CP de tu sucursal (ej: "4700")
- * @param {string} params.codigoPostalDestino - CP del cliente
- * @param {number} params.pesoTotal           - Peso en kg (ej: 1.5)
- * @param {number} params.volumen             - Volumen en cm³ (largo×ancho×alto)
- * @param {number} params.valorDeclarado      - Valor del paquete en pesos
- * @param {string} [params.operativa]         - Código de operativa (usa env por defecto)
+ * @param {string} params.cpDestino        - CP destino (4 dígitos)
+ * @param {number} [params.pesoKg=0.5]     - Peso en kg
+ * @param {number} [params.alto=10]        - Alto en cm
+ * @param {number} [params.ancho=20]       - Ancho en cm
+ * @param {number} [params.largo=30]       - Largo en cm
+ * @param {number} [params.valorDeclarado=0]
+ * @param {string} [params.operativa]      - Usa OCA_OPERATIVA_SAP por defecto
  * @returns {Promise<{ precio: number, diasHabiles: number, operativa: string }>}
  */
 export async function tarifar({
-  codigoPostalOrigen  = process.env.OCA_CP_ORIGEN ?? "4700",
-  codigoPostalDestino,
-  pesoTotal,
-  volumen,
-  valorDeclarado,
-  operativa = process.env.OCA_OPERATIVA_ENVIO,
+  cpDestino,
+  pesoKg        = 0.5,
+  alto          = 10,
+  ancho         = 20,
+  largo         = 30,
+  valorDeclarado = 0,
+  operativa,
 }) {
-  if (!codigoPostalDestino) throw new Error("codigoPostalDestino es requerido");
-  if (!operativa)           throw new Error("OCA_OPERATIVA_ENVIO no configurada");
+  if (!cpDestino) throw new Error('cpDestino es requerido')
 
-  const { cuit, cuenta } = getCredenciales();
+  const cuit      = process.env.OCA_CUIT_REMITENTE
+  const op        = operativa ?? process.env.OCA_OPERATIVA_SAP ?? '466987'
+  const cpOrigen  = process.env.OCA_CP_ORIGEN ?? '4700'
+  const volumenM3 = cmToM3(alto, ancho, largo)
 
-  const url = new URL(`${OCA_BASE_URL}/Cotizar`);
-  url.searchParams.set("CPOrigen",          codigoPostalOrigen);
-  url.searchParams.set("CPDestino",         codigoPostalDestino);
-  url.searchParams.set("Operativa",         operativa);
-  url.searchParams.set("Cuenta",            cuenta);
-  url.searchParams.set("Cuit",              cuit);
-  url.searchParams.set("Peso",              String(pesoTotal));
-  url.searchParams.set("Vol",               String(volumen));
-  url.searchParams.set("ValorDeclarado",    String(valorDeclarado));
-  url.searchParams.set("Cant",              "1");
+  if (!cuit) throw new Error('OCA_CUIT_REMITENTE no configurado')
 
-  const res = await fetch(url.toString(), {
-    headers: { ...authHeader(), Accept: "application/json" },
-  });
+  const params = new URLSearchParams({
+    Cuit:                 cuit,
+    Operativa:            op,
+    PesoTotal:            String(pesoKg),
+    VolumenTotal:         String(volumenM3),
+    CodigoPostalOrigen:   cpOrigen,
+    CodigoPostalDestino:  cpDestino,
+    CantidadPaquetes:     '1',
+    ValorDeclarado:       String(Math.round(valorDeclarado)),
+  })
+
+  const url = `${BASE}/Tarifar_Envio_Corporativo?${params}`
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json, text/xml' },
+  })
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OCA Cotizar error ${res.status}: ${text}`);
+    const txt = await res.text()
+    throw new Error(`OCA Tarifar error ${res.status}: ${txt}`)
   }
 
-  const data = await res.json();
+  const text = await res.text()
 
-  // OCA devuelve array de tarifas — tomamos la primera (la más relevante)
-  const tarifa = Array.isArray(data) ? data[0] : data;
+  // La respuesta es XML — parseamos manualmente los campos clave
+  const precio      = parseFloat(extraerXml(text, 'Total')     ?? extraerXml(text, 'precio')     ?? '0')
+  const diasMin     = parseInt(extraerXml(text, 'PlazoEntrega') ?? extraerXml(text, 'DiasHabiles') ?? '5')
+
+  if (!precio) {
+    // Si OCA devuelve 0 o vacío, probablemente el CP no tiene cobertura
+    throw new Error(`OCA no pudo cotizar para CP ${cpDestino}. Respuesta: ${text.slice(0, 300)}`)
+  }
 
   return {
-    precio:      parseFloat(tarifa?.Precio ?? tarifa?.precio ?? 0),
-    diasHabiles: parseInt(tarifa?.DiasHabiles ?? tarifa?.diasHabiles ?? 5),
-    operativa:   tarifa?.Operativa ?? operativa,
-    raw:         tarifa,
-  };
+    precio,
+    diasHabiles: diasMin,
+    operativa:   op,
+    raw:         text,
+  }
 }
 
-// ─── 2. Generar etiqueta / ingreso de envío ────────────────────────────────────
+// ── 2. CREAR ENVÍO ────────────────────────────────────────────────────────────
 /**
- * Genera el número de envío OCA y la etiqueta PDF.
+ * Genera una orden de admisión/retiro en OCA ePak.
+ * Como el cliente lleva el paquete a la sucursal CAT, usamos Admisión en Sucursal.
  *
- * @param {object} params
- * @param {object} params.pedido     - Registro de Pedido de la BD
- * @param {object} params.direccion  - Objeto Direccion del cliente (o null si retira en suc.)
- * @param {object[]} params.items    - Array de PedidoItem
- * @param {number}  params.peso      - Peso total en kg
- * @param {number}  params.alto      - Alto del paquete en cm
- * @param {number}  params.ancho     - Ancho del paquete en cm
- * @param {number}  params.largo     - Largo del paquete en cm
- * @returns {Promise<{ numeroEnvio: string, etiquetaUrl: string, admision: string }>}
+ * @param {object} p
+ * @param {object} p.pedido      - Registro Pedido de la BD
+ * @param {object} p.direccion   - Dirección del destinatario
+ * @param {object[]} p.items     - Items del pedido
+ * @param {number} [p.pesoKg=1]
+ * @param {number} [p.alto=20]
+ * @param {number} [p.ancho=30]
+ * @param {number} [p.largo=40]
  */
 export async function generarEnvio({
   pedido,
   direccion,
-  items    = [],
-  peso     = 1,
-  alto     = 20,
-  ancho    = 30,
-  largo    = 40,
+  items   = [],
+  pesoKg  = 1,
+  alto    = 20,
+  ancho   = 30,
+  largo   = 40,
 }) {
-  const { cuit, cuenta } = getCredenciales();
-  const operativa = process.env.OCA_OPERATIVA_ENVIO;
-  const centroImpos = process.env.OCA_CENTRO_IMPOS ?? "0";
+  const usr      = process.env.OCA_USUARIO
+  const psw      = process.env.OCA_PASSWORD
+  const cuenta   = process.env.OCA_NUMERO_CUENTA   // 197500/000
+  const operativa = process.env.OCA_OPERATIVA_SAP  // 466987
+  const cpOrigen = process.env.OCA_CP_ORIGEN ?? '4700'
 
-  if (!operativa) throw new Error("OCA_OPERATIVA_ENVIO no configurada");
-  if (!direccion) throw new Error("Dirección requerida para generar envío OCA");
+  if (!usr || !psw || !cuenta || !operativa) {
+    throw new Error('Faltan variables de entorno OCA (usuario, password, cuenta u operativa)')
+  }
+  if (!direccion) throw new Error('Dirección requerida para generar envío OCA')
 
-  const descripcion = items
-    .slice(0, 3)
-    .map((i) => `${i.cantidad}x ${i.nombre}`)
-    .join(", ");
+  const nroRemito  = `JMR-${pedido.id.slice(-10).toUpperCase()}`
+  const fechaHoy   = new Date().toISOString().slice(0, 10).replace(/-/g, '') // AAAAMMDD
+  const descripcion = items.slice(0, 2).map(i => `${i.cantidad}x ${i.nombre}`).join(', ')
 
-  const volumen = alto * ancho * largo;
-  const valorDeclarado = Math.round(pedido.total);
+  // Nombre del destinatario — separar en apellido/nombre
+  const nombreCompleto = (pedido.compradorNombre ?? 'Cliente').trim()
+  const partes         = nombreCompleto.split(' ')
+  const apellido       = partes.slice(-1)[0] ?? 'Cliente'
+  const nombre         = partes.slice(0, -1).join(' ') || apellido
 
-  const body = {
-    // Remitente
-    cuitRemitente:          cuit,
-    nroCuenta:              cuenta,
-    centroImposicion:       centroImpos,
-    operativa,
-    // Destinatario
-    nroDespacho:            pedido.id.slice(-12).toUpperCase(), // referencia interna
-    apellido:               pedido.compradorNombre ?? "Cliente",
-    nombre:                 "",
-    calle:                  direccion.calle,
-    nro:                    direccion.numero ?? "S/N",
-    piso:                   direccion.piso ?? "",
-    depto:                  direccion.departamento ?? "",
-    localidad:              direccion.ciudad,
-    provincia:              direccion.provincia ?? "Catamarca",
-    codigoPostal:           direccion.cp ?? "",
-    telefono:               pedido.compradorTelefono ?? "",
-    email:                  pedido.compradorEmail ?? "",
-    // Paquete
-    cantidadPaquetes:       1,
-    peso:                   peso,
-    volumen:                volumen,
-    valorDeclarado,
-    descripcion:            descripcion || "Artículos de marroquinería",
-    // Referencia cliente
-    obs1:                   `JMR-${pedido.id.slice(-8).toUpperCase()}`,
-    obs2:                   "",
-  };
+  const xml = `<?xml version="1.0" encoding="iso-8859-1" standalone="yes"?>
+<ROWS>
+  <cabecera ver="2.0" nrocuenta="${cuenta}" origen="API" />
+  <origenes>
+    <origen
+      calle="Villegas"
+      nro="837"
+      piso=""
+      depto=""
+      cp="${cpOrigen}"
+      localidad="SAN FERNANDO DEL VALLE DE CATAMARCA"
+      provincia="CATAMARCA"
+      contacto="JMR Marroquineria"
+      email="${process.env.OCA_USUARIO}"
+      solicitante=""
+      observaciones="Admision en sucursal OCA Catamarca"
+      centrocosto="1"
+      idfranjahoraria="1"
+      idcentroimposicionorigen="0"
+      fecha="${fechaHoy}"
+    >
+      <envios>
+        <envio idoperativa="${operativa}" nroremito="${nroRemito}">
+          <destinatario
+            apellido="${sanitize(apellido)}"
+            nombre="${sanitize(nombre)}"
+            calle="${sanitize(direccion.calle)}"
+            nro="${sanitize(direccion.numero ?? 'SN')}"
+            piso="${sanitize(direccion.piso ?? '')}"
+            depto="${sanitize(direccion.departamento ?? '')}"
+            localidad="${sanitize(direccion.ciudad)}"
+            provincia="${sanitize(direccion.provincia)}"
+            cp="${direccion.codigoPostal ?? direccion.cp}"
+            telefono="${sanitize(pedido.compradorTelefono ?? '')}"
+            email="${sanitize(pedido.compradorEmail ?? '')}"
+            idci="0"
+            celular="${sanitize(pedido.compradorTelefono ?? '')}"
+            observaciones="${sanitize(descripcion)}"
+          />
+          <paquetes>
+            <paquete
+              alto="${alto}"
+              ancho="${ancho}"
+              largo="${largo}"
+              peso="${pesoKg}"
+              valor="0"
+              cant="1"
+            />
+          </paquetes>
+        </envio>
+      </envios>
+    </origen>
+  </origenes>
+</ROWS>`
 
-  const res = await fetch(`${OCA_BASE_URL}/Envios`, {
-    method:  "POST",
-    headers: {
-      ...authHeader(),
-      "Content-Type": "application/json",
-      Accept:         "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  const body = new URLSearchParams({
+    usr,
+    psw,
+    XML_Datos:       xml,
+    ConfirmarRetiro: 'true',
+    ArchivoCliente:  '',
+    ArchivoProceso:  '',
+  })
+
+  const res = await fetch(`${BASE}/IngresoORMultiplesRetiros`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body:    body.toString(),
+  })
 
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OCA Envios error ${res.status}: ${text}`);
+    const txt = await res.text()
+    throw new Error(`OCA IngresoOR error ${res.status}: ${txt}`)
   }
 
-  const data = await res.json();
+  const text = await res.text()
 
-  const numeroEnvio  = String(data?.NumeroEnvio  ?? data?.numeroEnvio  ?? "");
-  const admision     = String(data?.NroAdmision   ?? data?.nroAdmision  ?? "");
-  const etiquetaUrl  = data?.UrlEtiqueta ?? data?.urlEtiqueta ?? null;
+  // Respuesta XML: <Numero_OR>XXXXX</Numero_OR> o similar
+  const numeroOR  = extraerXml(text, 'Numero_OR')   ?? extraerXml(text, 'numeroOR')
+  const nroEnvio  = extraerXml(text, 'nroEnvio')    ?? extraerXml(text, 'NroEnvio') ?? numeroOR
+  const error     = extraerXml(text, 'Errores')     ?? extraerXml(text, 'Error')
 
-  if (!numeroEnvio) {
-    throw new Error(`OCA no devolvió número de envío. Respuesta: ${JSON.stringify(data)}`);
+  if (error && error.trim() && error.trim() !== '0') {
+    throw new Error(`OCA rechazó el envío: ${error}`)
+  }
+  if (!numeroOR) {
+    throw new Error(`OCA no devolvió número de orden. Respuesta: ${text.slice(0, 500)}`)
   }
 
-  return { numeroEnvio, etiquetaUrl, admision, raw: data };
+  return {
+    numeroEnvio:  nroEnvio ?? numeroOR,
+    numeroOrden:  numeroOR,
+    etiquetaUrl:  `${BASE}/GetHtmlDeEtiquetasPorOrdenOrNumeroEnvio?idOrdenRetiro=${numeroOR}`,
+    admision:     nroRemito,
+    raw:          text,
+  }
 }
 
-// ─── 3. Tracking ──────────────────────────────────────────────────────────────
+// ── 3. TRACKING ───────────────────────────────────────────────────────────────
 /**
- * Consulta el estado de un envío OCA por número de envío.
- *
- * @param {string} numeroEnvio
- * @returns {Promise<{ estado: string, eventos: object[], fechaEntrega: string|null }>}
+ * Consulta el estado de un envío OCA.
+ * Usa el endpoint público de tracking.
  */
-export async function trackEnvio(numeroEnvio) {
-  if (!numeroEnvio) throw new Error("numeroEnvio requerido");
+export async function trackEnvio(nroEnvio) {
+  if (!nroEnvio) throw new Error('nroEnvio requerido')
 
-  const url = new URL(`${OCA_BASE_URL}/Tracking`);
-  url.searchParams.set("nroEnvio", numeroEnvio);
+  const url = `https://webservice.oca.com.ar/epak_tracking/Oep_TrackEPak.asmx/Tracking_Pieza?Pieza=${nroEnvio}&Password=&Usr=`
 
-  const res = await fetch(url.toString(), {
-    headers: { ...authHeader(), Accept: "application/json" },
-  });
-
+  const res = await fetch(url)
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OCA Tracking error ${res.status}: ${text}`);
+    const txt = await res.text()
+    throw new Error(`OCA Tracking error ${res.status}: ${txt}`)
   }
 
-  const data = await res.json();
-  const eventos = Array.isArray(data) ? data : (data?.eventos ?? []);
+  const text    = await res.text()
+  const eventos = parsearEventosTracking(text)
 
-  // Mapear estados OCA a estados internos legibles
-  const OCA_ESTADO_MAP = {
-    "1":  "EN_CAMINO",
-    "2":  "EN_SUCURSAL",
-    "3":  "ENTREGADO",
-    "4":  "DEVUELTO",
-    "5":  "EN_CAMINO",
-    "6":  "SIN_MOVIMIENTO",
-    "99": "EN_CAMINO",
-  };
+  const OCA_ESTADOS = {
+    'EN CAMINO':          'EN_CAMINO',
+    'EN SUCURSAL':        'EN_SUCURSAL',
+    'ENTREGADO':          'ENTREGADO',
+    'DEVUELTO':           'DEVUELTO',
+    'EN DISTRIBUCION':    'EN_CAMINO',
+    'EN TRANSITO':        'EN_CAMINO',
+  }
 
-  const ultimoEvento = eventos[eventos.length - 1];
-  const codigoEstado = String(ultimoEvento?.CodEstado ?? ultimoEvento?.codEstado ?? "");
-  const estado = OCA_ESTADO_MAP[codigoEstado] ?? "EN_CAMINO";
+  const ultimoEvento  = eventos[eventos.length - 1]
+  const estadoRaw     = (ultimoEvento?.Estado ?? '').toUpperCase()
+  const estado        = OCA_ESTADOS[estadoRaw] ?? 'EN_CAMINO'
+  const fechaEntrega  = estado === 'ENTREGADO' ? ultimoEvento?.Fecha ?? null : null
 
-  const fechaEntrega =
-    estado === "ENTREGADO"
-      ? (ultimoEvento?.Fecha ?? ultimoEvento?.fecha ?? null)
-      : null;
-
-  return { estado, eventos, fechaEntrega, raw: data };
+  return { estado, eventos, fechaEntrega, raw: text }
 }
 
-// ─── 4. Sucursales OCA cercanas ────────────────────────────────────────────────
+// ── 4. SUCURSALES CERCANAS ────────────────────────────────────────────────────
 /**
- * Lista sucursales OCA cercanas a un código postal (útil para mostrar
- * opción "Retiro en sucursal OCA" en el checkout).
- *
- * @param {string} codigoPostal
- * @returns {Promise<object[]>}
+ * Obtiene sucursales OCA cercanas a un CP (para mostrar opción retiro en sucursal)
  */
 export async function getSucursalesCercanas(codigoPostal) {
-  if (!codigoPostal) throw new Error("codigoPostal requerido");
+  if (!codigoPostal) throw new Error('codigoPostal requerido')
 
-  const url = new URL(`${OCA_BASE_URL}/Sucursales`);
-  url.searchParams.set("CodigoPostal", codigoPostal);
+  const url = `https://webservice.oca.com.ar/epak_tracking/Oep_TrackEPak.asmx/GetCentrosImposicionConServiciosByCP?CodigoPostal=${codigoPostal}`
 
-  const res = await fetch(url.toString(), {
-    headers: { ...authHeader(), Accept: "application/json" },
-  });
-
+  const res = await fetch(url)
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`OCA Sucursales error ${res.status}: ${text}`);
+    const txt = await res.text()
+    throw new Error(`OCA Sucursales error ${res.status}: ${txt}`)
   }
 
-  const data = await res.json();
-  const sucursales = Array.isArray(data) ? data : [];
+  const text = await res.text()
+  // Parsear XML de sucursales
+  const matches = [...text.matchAll(/<Sucursal[^>]*>([\s\S]*?)<\/Sucursal>/gi)]
 
-  return sucursales.map((s) => ({
-    id:        s.IdSucursal   ?? s.id,
-    nombre:    s.Nombre       ?? s.nombre,
-    domicilio: s.Domicilio    ?? s.domicilio,
-    localidad: s.Localidad    ?? s.localidad,
-    cp:        s.CodigoPostal ?? s.codigoPostal,
-    telefono:  s.Telefono     ?? s.telefono,
-    horario:   s.Horario      ?? s.horario,
-    raw:       s,
-  }));
+  return matches.map(m => {
+    const bloque = m[1]
+    return {
+      id:        extraerXml(bloque, 'Idci')        ?? '',
+      nombre:    extraerXml(bloque, 'Descripcion') ?? '',
+      domicilio: extraerXml(bloque, 'Calle')       ?? '',
+      cp:        extraerXml(bloque, 'CodigoPostal') ?? '',
+      localidad: extraerXml(bloque, 'Localidad')   ?? '',
+      telefono:  extraerXml(bloque, 'Telefono')    ?? '',
+      horario:   extraerXml(bloque, 'Horario')     ?? '',
+    }
+  })
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Extrae contenido de una etiqueta XML simple */
+function extraerXml(xml, tag) {
+  const re    = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i')
+  const match = xml.match(re)
+  return match ? match[1].trim() : null
+}
+
+/** Elimina caracteres que rompen el XML de OCA */
+function sanitize(str) {
+  return String(str ?? '')
+    .replace(/&/g, 'y')
+    .replace(/</g, '')
+    .replace(/>/g, '')
+    .replace(/"/g, '')
+    .replace(/\|/g, '')
+    .slice(0, 100)
+}
+
+/** Parsea los eventos de tracking del XML de OCA */
+function parsearEventosTracking(xml) {
+  const matches = [...xml.matchAll(/<TrackingPiezaVO[^>]*>([\s\S]*?)<\/TrackingPiezaVO>/gi)]
+  if (!matches.length) {
+    // Intentar con tag alternativo
+    const alt = [...xml.matchAll(/<Evento[^>]*>([\s\S]*?)<\/Evento>/gi)]
+    return alt.map(m => ({
+      Fecha:       extraerXml(m[1], 'Fecha')       ?? '',
+      Estado:      extraerXml(m[1], 'Estado')      ?? '',
+      Descripcion: extraerXml(m[1], 'Descripcion') ?? '',
+      Sucursal:    extraerXml(m[1], 'Sucursal')    ?? '',
+    }))
+  }
+  return matches.map(m => ({
+    Fecha:       extraerXml(m[1], 'Fecha')       ?? '',
+    Estado:      extraerXml(m[1], 'Estado')      ?? '',
+    Descripcion: extraerXml(m[1], 'Descripcion') ?? '',
+    Sucursal:    extraerXml(m[1], 'Sucursal')    ?? '',
+  }))
 }

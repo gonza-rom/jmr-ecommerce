@@ -1,45 +1,38 @@
 // src/app/api/oca/tarifar/route.js
-// POST /api/oca/tarifar
-// Calcula el costo de envío OCA para un CP destino.
-// Llamado desde el checkout cuando el usuario elige "Envío a domicilio".
+import { NextResponse } from 'next/server'
+import { tarifar } from '@/lib/oca'
 
-import { NextResponse } from "next/server";
-import { tarifar }      from "@/lib/oca";
-
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic'
 
 export async function POST(req) {
   try {
-    const body = await req.json();
+    const body = await req.json()
     const {
-      codigoPostalDestino,
-      pesoTotal     = 1,
-      volumen       = 24000, // 20×30×40 cm por defecto
-      valorDeclarado,
-    } = body;
+      cpDestino,
+      codigoPostalDestino, // alias por compatibilidad con checkout anterior
+      operativa,
+      pesoKg        = 0.5,
+      alto          = 10,
+      ancho         = 20,
+      largo         = 30,
+      valorDeclarado = 0,
+    } = body
 
-    if (!codigoPostalDestino) {
-      return NextResponse.json(
-        { ok: false, error: "codigoPostalDestino requerido" },
-        { status: 400 }
-      );
+    const cp = cpDestino ?? codigoPostalDestino
+    if (!cp) {
+      return NextResponse.json({ ok: false, error: 'cpDestino requerido' }, { status: 400 })
     }
 
-    const tarifa = await tarifar({
-      codigoPostalDestino,
-      pesoTotal,
-      volumen,
-      valorDeclarado: valorDeclarado ?? 1,
-    });
+    const tarifa = await tarifar({ cpDestino: cp, pesoKg, alto, ancho, largo, valorDeclarado, operativa })
 
-    return NextResponse.json({ ok: true, tarifa });
+    return NextResponse.json({ ok: true, tarifa })
+
   } catch (error) {
-    console.error("[POST /api/oca/tarifar]", error.message);
-    // Si OCA falla, devolvemos un costo fallback en vez de romper el checkout
+    console.error('[POST /api/oca/tarifar]', error.message)
     return NextResponse.json({
-      ok:      false,
-      error:   error.message,
-      fallback: { precio: 5000, diasHabiles: 5 },
-    });
+      ok:       false,
+      error:    error.message,
+      fallback: { precio: 6500, diasHabiles: 5 },
+    })
   }
 }
