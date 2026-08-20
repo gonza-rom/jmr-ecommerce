@@ -10,6 +10,7 @@ import { crearVentaEnDevhub }      from '@/lib/devhub';
 import { generarEnvio }            from '@/lib/oca';
 import { enviarCambioEstado }      from '@/emails/cambio-estado';
 import { enviarTrackingOCA }       from '@/emails/tracking-oca';
+import { requireAdmin }            from '@/lib/auth-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,10 @@ const ESTADOS_CON_EMAIL = new Set([
 
 export async function PATCH(req, context) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
+    }
+
     const { id }  = await context.params;
     const body    = await req.json();
     const { estado, forzarDevhub, generarEnvioOCA, pesoOCA, altoOCA, anchoOCA, largoOCA } = body;

@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import {
   LayoutDashboard, Package, Tag, ShoppingBag,
-  Settings, LogOut, Menu, X, Store,
+  LogOut, Menu, X, Store,
 } from 'lucide-react';
 
 const NAV = [
@@ -15,7 +15,6 @@ const NAV = [
   { href: '/admin/pedidos',    icon: ShoppingBag,     label: 'Pedidos'    },
   { href: '/admin/productos',  icon: Package,         label: 'Productos'  },
   { href: '/admin/categorias', icon: Tag,             label: 'Categorías' },
-  { href: '/admin/config',     icon: Settings,        label: 'Config.'    },
 ];
 
 function Logo() {

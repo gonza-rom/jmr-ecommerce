@@ -1,11 +1,16 @@
 // src/app/api/admin/pedidos/route.js
-import { NextResponse } from 'next/server';
-import { prisma }       from '@/lib/prisma';
+import { NextResponse }  from 'next/server';
+import { prisma }        from '@/lib/prisma';
+import { requireAdmin }  from '@/lib/auth-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const q      = searchParams.get('q')      ?? '';
     const estado = searchParams.get('estado') ?? '';

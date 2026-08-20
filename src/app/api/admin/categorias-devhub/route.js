@@ -3,11 +3,16 @@
 
 import { NextResponse }          from 'next/server';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
+import { requireAdmin }          from '@/lib/auth-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
+    }
+
     const categorias = await devhub.categoria.findMany({
       where: {
         tenantId: JMR_TENANT_ID,

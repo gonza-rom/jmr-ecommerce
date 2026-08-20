@@ -4,11 +4,16 @@
 
 import { NextResponse }          from 'next/server';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
+import { requireAdmin }          from '@/lib/auth-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
 
     const page        = Math.max(1,   parseInt(searchParams.get('page')     ?? '1'));

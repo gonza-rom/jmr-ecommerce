@@ -3,11 +3,16 @@
 
 import { NextResponse }          from 'next/server';
 import { devhub, JMR_TENANT_ID } from '@/lib/prisma-devhub';
+import { requireAdmin }          from '@/lib/auth-admin';
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(req, context) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: 'No autorizado' }, { status: 401 });
+    }
+
     const { id }             = await context.params;
     const { visibleCatalogo } = await req.json();
 

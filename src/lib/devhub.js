@@ -12,6 +12,8 @@ export async function getProductos({
   pageSize = 20,
   ordenar = "nombre",
   soloConStock = false,
+  precioMin,
+  precioMax,
 } = {}) {
   const where = {
     tenantId: JMR_TENANT_ID,
@@ -25,6 +27,12 @@ export async function getProductos({
         { codigoProducto: { contains: q, mode: "insensitive" } },
         { codigoBarras:   { contains: q, mode: "insensitive" } },
       ],
+    }),
+    ...((precioMin != null || precioMax != null) && {
+      precio: {
+        ...(precioMin != null && { gte: precioMin }),
+        ...(precioMax != null && { lte: precioMax }),
+      },
     }),
   };
 

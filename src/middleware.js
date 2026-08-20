@@ -1,8 +1,6 @@
 import { NextResponse }       from "next/server";
 import { createServerClient } from "@supabase/ssr";
-
-
-const ADMINS = ["jmrmarroquineria@gmail.com"];
+import { ADMINS }             from "@/lib/admins";
 
 const MANTENIMIENTO = process.env.MODO_MANTENIMIENTO === "true";
 

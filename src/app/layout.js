@@ -5,9 +5,6 @@ import Footer from '@/components/Footer';
 import { CartProvider } from '@/context/CartContext';
 import { ToastProvider } from '@/context/ToastContext';
 
-
-export const dynamic = 'force-dynamic'; // ← agregar acá
-
 const inter = Inter({ subsets: ['latin'] });
 
 export const viewport = {

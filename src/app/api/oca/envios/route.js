@@ -6,11 +6,16 @@
 import { NextResponse } from "next/server";
 import { generarEnvio } from "@/lib/oca";
 import { prisma }       from "@/lib/prisma";
+import { requireAdmin } from "@/lib/auth-admin";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+    }
+
     const body = await req.json();
     const {
       pedidoId,

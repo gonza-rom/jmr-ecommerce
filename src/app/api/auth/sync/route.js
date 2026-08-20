@@ -1,10 +1,20 @@
 // src/app/api/auth/sync/route.js
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { prisma }       from '@/lib/prisma';
+import { NextResponse }           from 'next/server';
+import { createClient }           from '@/lib/supabase/server';
+import { prisma }                 from '@/lib/prisma';
+import { rateLimit, getClientIp } from '@/lib/rate-limit';
 
-export async function POST() {
+export async function POST(req) {
   try {
+    const ip = getClientIp(req);
+    const limite = rateLimit(`auth-sync:${ip}`, { limit: 20, windowMs: 60_000 });
+    if (!limite.ok) {
+      return NextResponse.json(
+        { ok: false, error: 'Demasiados intentos. Esperá un momento.' },
+        { status: 429, headers: { 'Retry-After': String(limite.retryAfterSeconds) } }
+      );
+    }
+
     const supabase           = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 

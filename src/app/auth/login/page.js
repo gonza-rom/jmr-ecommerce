@@ -1,7 +1,5 @@
 'use client';
 // src/app/auth/login/page.js
-// CAMBIO: handleRecuperar ahora llama a /api/auth/recuperar-password
-// en lugar de supabase.auth.resetPasswordForEmail directamente.
 
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -103,7 +101,7 @@ function LoginContent() {
     finally  { setLoadingG(false); }
   }
 
-  // ── Recuperar contraseña via nuestro endpoint ─────────────────────────────
+  // ── Recuperar contraseña via Supabase ─────────────────────────────────────
     async function handleRecuperar() {
     if (!email.trim()) { 
       setError('Ingresá tu email para recuperar la contraseña'); 

@@ -13,6 +13,7 @@ import { createServerClient }             from '@supabase/ssr';
 import { cookies }                        from 'next/headers';
 import { enviarConfirmacionPedido }       from '@/emails/confirmacion-pedido';
 import { notificarAdminPedidoNuevo }      from '@/emails/notificacion-admin';
+import { rateLimit, getClientIp }         from '@/lib/rate-limit';
 
 const APP_URL          = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 const TOLERANCIA_PRECIO = 0.01;
@@ -125,6 +126,7 @@ async function crearPreferenciaMp(pedido, items, compradorEmail) {
       auto_return:          'approved',
       external_reference:   pedido.id,
       statement_descriptor: 'MARROQUINERIA JMR',
+      notification_url:     `${APP_URL}/api/mercadopago/webhook`,
     };
     const res  = await fetch('https://api.mercadopago.com/checkout/preferences', {
       method:  'POST',
@@ -191,6 +193,15 @@ async function dispararEmails(pedido) {
 // ── POST /api/checkout ────────────────────────────────────────────────────────
 export async function POST(req) {
   try {
+    const ip = getClientIp(req);
+    const limite = rateLimit(`checkout:${ip}`, { limit: 5, windowMs: 60_000 });
+    if (!limite.ok) {
+      return NextResponse.json(
+        { ok: false, error: 'Demasiados intentos. Esperá un momento y volvé a intentar.' },
+        { status: 429, headers: { 'Retry-After': String(limite.retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const {
       items, costoEnvio = 0, metodoPago, tipoEnvio,

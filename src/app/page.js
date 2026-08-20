@@ -1,32 +1,17 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingBag, ArrowRight, Star, TrendingUp, CreditCard, Wallet, QrCode, ChevronRight } from 'lucide-react';
-import { useCart } from '@/context/CartContext';
-import ProductCard from '@/components/ProductCard';
+import { ArrowRight, CreditCard } from 'lucide-react';
+import { getProductos } from '@/lib/devhub';
+import FeaturedProductsGrid from '@/components/FeaturedProductsGrid';
+import PaymentLogos from '@/components/PaymentLogos';
 
-export default function Home() {
-  const [productosDestacados, setProductosDestacados] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { addToCart } = useCart();
+export const revalidate = 60;
 
-  useEffect(() => {
-    fetchProductosDestacados();
-  }, []);
-
-  const fetchProductosDestacados = async () => {
-    try {
-      const response = await fetch('/api/productos?destacados=true&limit=8');
-      const data = await response.json();
-      setProductosDestacados(data.productos ?? []);
-    } catch (error) {
-      console.error('Error al cargar productos:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+export default async function Home() {
+  const { productos: productosDestacados } = await getProductos({
+    ordenar:  'recientes',
+    pageSize: 8,
+  });
 
   const mediosDePago = [
     { nombre: 'BNA+', logo: 'bna-plus.png' },
@@ -518,23 +503,7 @@ export default function Home() {
             <Link href="/productos" className="view-all">Ver Todos →</Link>
           </div>
 
-          {loading ? (
-            <div className="products-grid">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="product-skeleton" />
-              ))}
-            </div>
-          ) : (
-            <div className="products-grid">
-              {productosDestacados.map((producto) => (
-                <ProductCard
-                  key={producto.id}
-                  producto={producto}
-                  onAddToCart={addToCart}
-                />
-              ))}
-            </div>
-          )}
+          <FeaturedProductsGrid productos={productosDestacados} />
         </div>
       </section>
 
@@ -590,23 +559,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="pago-logos">
-            {mediosDePago.map((m) => (
-              <div key={m.nombre} className="pago-logo-item" title={m.nombre}>
-                <Image
-                  src={`/pagos/${m.logo}`}
-                  alt={m.nombre}
-                  width={48}
-                  height={32}
-                  style={{ objectFit: 'contain', maxHeight: '32px', width: 'auto' }}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.parentElement.innerHTML = `<span style="font-size:0.65rem;font-weight:700;color:#444;text-align:center">${m.nombre}</span>`;
-                  }}
-                />
-              </div>
-            ))}
-          </div>
+          <PaymentLogos mediosDePago={mediosDePago} />
         </div>
       </section>
     </div>
