@@ -210,10 +210,10 @@ export default function ProductoDetalleClient({ producto }) {
         </motion.button>
 
         {/* Grid principal */}
-        <div className="grid lg:grid-cols-2 gap-8 md:gap-14 mb-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-14 mb-8 items-start min-w-0">
 
           {/* Galería */}
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
+          <motion.div className="min-w-0" initial="hidden" animate="visible" variants={fadeUp} custom={0}>
             <ProductGallery producto={producto} />
             <button
               onClick={handleCompartir}
@@ -225,7 +225,7 @@ export default function ProductoDetalleClient({ producto }) {
           </motion.div>
 
           {/* Info */}
-          <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={1}>
+          <motion.div className="min-w-0" initial="hidden" animate="visible" variants={fadeUp} custom={1}>
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-9 lg:sticky lg:top-24">
 
               {producto.categoria && (
@@ -518,7 +518,7 @@ function EnvioInfo() {
               onChange={e => setCp(e.target.value.replace(/\D/g, '').slice(0, 8))}
               onKeyDown={e => e.key === 'Enter' && calcular()}
               placeholder="Código postal"
-              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-jmr-green bg-white"
+              className="flex-1 min-w-0 text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-jmr-green bg-white"
             />
             <button
               onClick={calcular}
